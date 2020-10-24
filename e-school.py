@@ -13,7 +13,7 @@ from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
 
 
-URL = 'SCHOOL_URL'
+URL = 'https://e-school.obr.lenreg.ru/'
 SCHOOL = 'МОБУ "СОШ "ЦО "Кудрово"'
 STATE = 'Ленинградская обл'
 PROVINCE = 'Всеволожский район'
