@@ -1,6 +1,6 @@
 from sys import argv, exit as sys_exit
 
-from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox
+from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QLineEdit
 from PyQt5.uic import loadUi
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt
@@ -59,6 +59,21 @@ class Login(QWidget):
         self.login_icon.setPixmap(
             QPixmap('./images/login.png').scaledToWidth(32))
         self.login_button.clicked.connect(self.do_login)
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.login_view_checkbox.stateChanged.connect(self.login_hider)
+        self.password_view_checkbox.stateChanged.connect(self.password_hider)
+
+    def password_hider(self):
+        if self.sender().isChecked():
+            self.password_input.setEchoMode(QLineEdit.Password)
+        else:
+            self.password_input.setEchoMode(QLineEdit.Normal)
+
+    def login_hider(self):
+        if self.sender().isChecked():
+            self.login_input.setEchoMode(QLineEdit.Password)
+        else:
+            self.login_input.setEchoMode(QLineEdit.Normal)
 
     def do_login(self):
         login = self.clear(self.login_input.text())
@@ -74,7 +89,6 @@ class Login(QWidget):
             except:
                 self.show_error(str(error))
         else:
-            # TODO: НЕ ОТКРЫВАЕТСЯ НОВОЕ ОКНО
             self.start_main_menu(login, password)
 
     def start_main_menu(self, login, password):
