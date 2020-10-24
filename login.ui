@@ -26,6 +26,20 @@ color: rgb(255, 255, 255);</string>
   <layout class="QVBoxLayout" name="verticalLayout_2">
    <item>
     <layout class="QGridLayout" name="gridLayout">
+     <item row="4" column="0">
+      <widget class="QLabel" name="password_icon">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="3">
+      <widget class="QLineEdit" name="password_input">
+       <property name="styleSheet">
+        <string notr="true">color: rgb(255, 255, 255);</string>
+       </property>
+      </widget>
+     </item>
      <item row="4" column="1">
       <widget class="QLabel" name="password_label">
        <property name="font">
@@ -38,6 +52,30 @@ color: rgb(255, 255, 255);</string>
        </property>
        <property name="text">
         <string>Пароль:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="3">
+      <widget class="QLineEdit" name="login_input">
+       <property name="acceptDrops">
+        <bool>false</bool>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">color: rgb(255, 255, 255);</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="login_icon">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="name_icon">
+       <property name="text">
+        <string/>
        </property>
       </widget>
      </item>
@@ -56,38 +94,30 @@ color: rgb(255, 255, 255);</string>
        </property>
       </widget>
      </item>
-     <item row="3" column="3">
-      <widget class="QLineEdit" name="login_input">
-       <property name="acceptDrops">
+     <item row="3" column="4">
+      <widget class="QCheckBox" name="login_view_checkbox">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="text">
+        <string> 👀</string>
+       </property>
+       <property name="checked">
         <bool>false</bool>
        </property>
-       <property name="styleSheet">
-        <string notr="true">color: rgb(255, 255, 255);</string>
-       </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="password_icon">
+     <item row="4" column="4">
+      <widget class="QCheckBox" name="password_view_checkbox">
        <property name="text">
-        <string/>
+        <string> 👀</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="name_icon">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="3">
-      <widget class="QLineEdit" name="password_input">
-       <property name="styleSheet">
-        <string notr="true">color: rgb(255, 255, 255);</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="1" colspan="3">
+     <item row="5" column="1" colspan="4">
       <widget class="QPushButton" name="login_button">
        <property name="font">
         <font>
@@ -117,7 +147,7 @@ gridline-color: rgb(255, 255, 255);</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="0" colspan="4">
+     <item row="1" column="0" colspan="5">
       <widget class="QLabel" name="hello_label">
        <property name="font">
         <font>
@@ -137,13 +167,6 @@ color: rgb(255, 255, 255);</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="login_icon">
-       <property name="text">
-        <string/>
        </property>
       </widget>
      </item>
