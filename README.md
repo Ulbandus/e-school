@@ -15,7 +15,7 @@
 *Используя Python:*
 
 
-`1) Перейди по https://github.com/Ulbandus/e school/archive/master.zip и скачай архив с программой`
+`1) Перейди по https://codeload.github.com/Ulbandus/e-school/zip/master и скачай архив с программой`
 
 `2) Распакуй архив`
 
