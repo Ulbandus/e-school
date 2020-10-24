@@ -15,7 +15,7 @@
 *Используя Python:*
 
 
-`1) Перейди по hhttps://github.com/Ulbandus/e-school/archive/main.zip и скачай архив с программой`
+`1) Перейди по https://github.com/Ulbandus/e-school/archive/main.zip и скачай архив с программой`
 
 `2) Распакуй архив`
 
@@ -40,7 +40,7 @@
 
 `$ apt-get install python3 git / pacman -S python3 git`
 
-`$ cd <PROGRAMM FOlDER>`
+`$ cd e-school-main`
 
 `$ pip install -r requirements.txt`
 
