@@ -245,13 +245,25 @@ class MainMenu(QWidget):
             QPixmap('./images/icon.png'))
         self.announcments_button.clicked.connect(self.show_announcements)
         self.exit_button.clicked.connect(self.exit_the_programm)
+        self.about_button.clicked.connect(self.about)
         '''for key, value in Clear(trio_run(self.get_info())):
             self.info.addItem(f'{key} - {value}')'''
-
+        
+    def about(self):
+        error = QMessageBox(self)
+        error.setIcon(QMessageBox.Information)
+        error.setWindowTitle('О программе')
+        error.setText(
+            'Разработчик: @Ulbandus\n\
+GitHub: https://github.com/Ulbandus/e-school\n---\n\
+Разработчик api: nm17\n\
+Github(api): https://github.com/nm17/netschoolapi/\n\
+NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
+Программа создана при поддержке Яндекс.Лицей')
+        error.exec_()        
 
     def show_announcements(self):
         for announcement in trio_run(self.api.announcements):
-            print(encoder(announcement))
             print(type(announcement))
             print(announcement.description)
             print('\n\n\n\n\n')
@@ -261,7 +273,7 @@ class MainMenu(QWidget):
                                       'Вы уверены, что хотите выйти?',
                                       QMessageBox.Yes, QMessageBox.No)
         if answer == QMessageBox.Yes:
-            self.destroy()
+            sys_exit(self.destroy())
 
 
 class Clear:
