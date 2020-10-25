@@ -1,5 +1,4 @@
 from sys import argv, exit as sys_exit
-
 from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QLineEdit, QDialog
 from PyQt5.uic import loadUi
 from PyQt5.QtGui import QIcon, QPixmap
@@ -11,7 +10,6 @@ from datetime import datetime, timedelta, date
 from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
-
 from sqlite3 import connect
 
 URL = 'https://e-school.obr.lenreg.ru/'
@@ -41,50 +39,67 @@ class WrongLoginDataException(Exception):
     def __init__(self):
         self.text = "Неправильный логин или пароль"
 
-
+class DataBase:
+    '''
+    Выполнение command(string) в ./db/user_data.db 
+    '''
+    def execute(command):
+        with connect('./db/user_data.db') as db:
+            cur = db.cursor()
+            result = cur.execute(command).fetchall()
+        return result
+        
 class Login(QWidget):
+    '''
+    Login Window
+    ./ui/login.ui
+    Methods:
+        *db_passwords - Select login/password from DataBase
+        *design_setup - Customizes the design
+        *hider - Hide/Show password/login in LineEdit
+        *select_login - Select login from AccountSelector
+        *start_main_menu - Start main manu (./ui/main_menu.ui, MainMenu)
+        *verify - Check login/password
+        *do_login - Login with login+password using NetSchoolAPI
+        *show_error = Show error using QMessageBox
+    '''
     def __init__(self):
-        self.forbidden_symbols = ' @{}|":>?<!@#$%^&*()_+=-'
-        self.icon = QIcon('./images/icon.ico')
+        self.db_login = False
         
         super(Login, self).__init__()
         loadUi('./ui/login.ui', self)
         self.design_setup()
-        self.check_db()
+        self.db_passwords()
 
     def select_login(self):
+        '''
+        output: bool/string
+        '''
         self.setEnabled(False)
-        account_selecter = AccountSelecter(self)
-        while account_selecter.exec_():
+        account_selector = AccountSelector(self)
+        while account_selector.exec_():
             pass
         self.setEnabled(True)
-        if account_selecter.answer == True:
-            return account_selecter.login
-        else:
-            return False
+        if account_selector.answer == True:
+            return account_selector.login
+        return False
         
         
-    def check_db(self):
-        self.db_login = []
-        with connect('./db/user_data.db') as db:
-            cur = db.cursor()
-            login_info = cur.execute('''SELECT * 
-            FROM users''').fetchall()
-        if login_info != []:
+    def db_passwords(self):
+        database_info = DataBase.execute('SELECT * \nFROM users')
+        if database_info != []:
             login = self.select_login()
             if login != False:
-                self.db_login = True
-                self.login_input.setEchoMode(QLineEdit.Password)
-                for data in login_info:
-                    if login in data:
-                        login_info = data
-                        break
-                self.login_input.setText(login_info[0])
-                self.password_input.setText(login_info[1])
+                database_info = [user for user in database_info
+                                 if login in user][0]
+                self.login_input.setEchoMode(QLineEdit.Password)                
                 self.login_view_checkbox.setChecked(True)
+                self.login_input.setText(database_info[0])
+                self.password_input.setText(database_info[1])
+                self.db_login = True                
 
     def design_setup(self):
-        self.setWindowIcon(self.icon)
+        self.setWindowIcon(QIcon('./images/icon.ico'))
         self.name_icon.setPixmap(
             QPixmap('./images/profile.png').scaledToWidth(32))
         self.password_icon.setPixmap(
@@ -93,26 +108,23 @@ class Login(QWidget):
             QPixmap('./images/login.png').scaledToWidth(32))
         self.login_button.clicked.connect(self.do_login)
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.login_view_checkbox.stateChanged.connect(self.login_hider)
-        self.password_view_checkbox.stateChanged.connect(self.password_hider)
+        self.login_view_checkbox.stateChanged.connect(self.hider)
+        self.password_view_checkbox.stateChanged.connect(self.hider)
 
-    def password_hider(self):
-        if self.sender().isChecked():
-            self.password_input.setEchoMode(QLineEdit.Password)
+    def hider(self):
+        sender_name = self.sender().objectName()
+        if sender_name == 'password_view_checkbox':
+            input_widget = self.password_input
         else:
-            if not self.db_login:
-                self.password_input.setEchoMode(QLineEdit.Normal)
-
-    def login_hider(self):
+            input_widget = self.login_input            
         if self.sender().isChecked():
-            self.login_input.setEchoMode(QLineEdit.Password)
-        else:
-            if not self.db_login:
-                self.login_input.setEchoMode(QLineEdit.Normal)
-
+            input_widget.setEchoMode(QLineEdit.Password)
+        elif not self.db_login:
+            input_widget.setEchoMode(QLineEdit.Normal)
+                
     def do_login(self):
-        login = self.clear(self.login_input.text())
-        password = self.clear(self.password_input.text())
+        login = Clear.login_or_password(self.login_input.text())
+        password = Clear.login_or_password(self.password_input.text())
         try:
             if self.verify(login) and self.verify(password):
                 ESchool(login, password, mode='check')
@@ -133,25 +145,11 @@ class Login(QWidget):
         main_menu.show()
 
     def show_error(self, text):
-        '''
-        Показывание ошибок
-        '''
         error = QMessageBox(self)
         error.setIcon(QMessageBox.Critical)
         error.setText(text)
         error.setWindowTitle('Error')
         error.exec_()
-
-    def clear(self, string):
-        '''
-        Чистка строк
-        input: str
-        output: str
-        '''
-        string = string.strip()
-        for forbidden_sym in self.forbidden_symbols:
-            string = string.replace(forbidden_sym, '')
-        return string
 
     def verify(self, string):
         '''
@@ -198,10 +196,10 @@ class ESchool:
         await self.api.get_announcements()
         await self.api.logout()
 
-class AccountSelecter(QDialog):
+class AccountSelector(QDialog):
     def __init__(self, parent):
         super().__init__(parent, Qt.Window)
-        loadUi('./ui/accout_selecter.ui', self)
+        loadUi('./ui/accout_selector.ui', self)
         self.design_setup()
         self.answer = False
 
@@ -222,11 +220,7 @@ class AccountSelecter(QDialog):
         return self.blured_logins
     
     def get_logins(self):
-        with connect('./db/user_data.db') as db:
-            cur = db.cursor()
-            logins = cur.execute('''SELECT login
-                                    FROM users''').fetchall()
-        return logins
+        return DataBase.execute('SELECT login \nFROM users')
     
     def no(self):
         self.hide()
@@ -262,6 +256,14 @@ class MainMenu(QWidget):
     def exit_the_programm(self):
         pass  # TODO:
     # Диалог хочет ли выйти пользователь
+
+class Clear:
+    def login_or_password(string):
+        forbidden_symbols = ' @{}|":>?<!@#$%^&*()_+=-'
+        string = string.strip()
+        for forbidden_sym in forbidden_symbols:
+            string = string.replace(forbidden_sym, '')
+        return string
 
 if __name__ == '__main__':
     app = QApplication(argv)
