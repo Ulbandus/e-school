@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 
 from string import ascii_lowercase
 from datetime import datetime, timedelta, date
+from json import encoder
 
 from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
@@ -127,7 +128,7 @@ class Login(QWidget):
         password = Clear.login_or_password(self.password_input.text())
         try:
             if self.verify(login) and self.verify(password):
-                ESchool(login, password, mode='check')
+                trio_run(ESchool(login, password).announcements)
         except WrongCredentialsError as error:
             self.show_error(WrongLoginDataException().text)
         except Exception as error:
@@ -169,12 +170,10 @@ class Login(QWidget):
 
 
 class ESchool:
-    def __init__(self, login, password, mode=''):
+    def __init__(self, login, password):
         self.api = NetSchoolAPI(URL)
         self.login = login
         self.password = password
-        if mode == 'check':
-            trio_run(self.check)
 
     def get_week(self):
         '''
@@ -182,19 +181,22 @@ class ESchool:
         input: -
         otput: datetime object
         '''
-        Today = date.today()
-        WeekStart = Today + timedelta(days=-Today.weekday() - 7,
+        today = date.today()
+        week_start = today + timedelta(days=-today.weekday() - 7,
                                       weeks=1)
-        WeekEnd = Today + timedelta(days=-Today.weekday() - 1,
+        week_end = today + timedelta(days=-today.weekday() - 1,
                                     weeks=1)
-        return WeekStart, WeekEnd
+        return week_start, week_end
 
-    async def check(self):
+    async def announcements(self):
         await self.api.login(login=self.login, password=self.password,
                              school=SCHOOL, state=STATE, province=PROVINCE,
                              city=CITY, func=FUNC)
-        await self.api.get_announcements()
+        announcements = await self.api.get_announcements()
         await self.api.logout()
+        return announcements
+
+
 
 class AccountSelector(QDialog):
     def __init__(self, parent):
@@ -236,26 +238,31 @@ class MainMenu(QWidget):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/main_menu.ui', self)
         self.design_setup()
+        self.api = api
 
     def design_setup(self):
         self.main_icon.setPixmap(
             QPixmap('./images/icon.png'))
+        self.announcments_button.clicked.connect(self.show_announcements)
         self.exit_button.clicked.connect(self.exit_the_programm)
         '''for key, value in Clear(trio_run(self.get_info())):
             self.info.addItem(f'{key} - {value}')'''
 
-    async def get_announcements(self):
-        await self.api.login(login=self.login, password=self.password,
-                             school=SCHOOL, state=STATE, province=PROVINCE,
-                             city=CITY, func=FUNC)
-        announcements = await self.api.get_announcements()
-        await self.api.logout()
-        announcements = Clear().announcement(announcements)
-        self.show_announcements(announcements)
+
+    def show_announcements(self):
+        for announcement in trio_run(self.api.announcements):
+            print(encoder(announcement))
+            print(type(announcement))
+            print(announcement.description)
+            print('\n\n\n\n\n')
         
     def exit_the_programm(self):
-        pass  # TODO:
-    # Диалог хочет ли выйти пользователь
+        answer = QMessageBox.question(self, 'Выход',
+                                      'Вы уверены, что хотите выйти?',
+                                      QMessageBox.Yes, QMessageBox.No)
+        if answer == QMessageBox.Yes:
+            self.destroy()
+
 
 class Clear:
     def login_or_password(string):
@@ -264,6 +271,9 @@ class Clear:
         for forbidden_sym in forbidden_symbols:
             string = string.replace(forbidden_sym, '')
         return string
+    
+    def announcement(announcement_):
+        return announcement_
 
 if __name__ == '__main__':
     app = QApplication(argv)
