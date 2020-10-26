@@ -12,6 +12,7 @@ from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
 from sqlite3 import connect
+from calendar import day_abbr
 
 URL = 'https://e-school.obr.lenreg.ru/'
 SCHOOL = 'МОБУ "СОШ "ЦО "Кудрово"'
@@ -186,7 +187,16 @@ class ESchool:
                                       weeks=1)
         week_end = today + timedelta(days=-today.weekday() - 1,
                                     weeks=1)
-        return week_start, week_end
+        print(week_start, week_end)
+        return datetime.strptime('2020-10-19', '%Y-%m-%d'), datetime.strptime('2020-10-25', '%Y-%m-%d')
+
+    async def diary(self):
+        await self.api.login(login=self.login, password=self.password,
+                             school=SCHOOL, state=STATE, province=PROVINCE,
+                             city=CITY, func=FUNC)
+        diary = await self.api.get_diary(*self.get_week())
+        await self.api.logout()
+        return diary
 
     async def announcements(self):
         await self.api.login(login=self.login, password=self.password,
@@ -246,8 +256,7 @@ class MainMenu(QWidget):
         self.announcments_button.clicked.connect(self.show_announcements)
         self.exit_button.clicked.connect(self.exit_the_programm)
         self.about_button.clicked.connect(self.about)
-        '''for key, value in Clear(trio_run(self.get_info())):
-            self.info.addItem(f'{key} - {value}')'''
+        self.diary_button.clicked.connect(self.show_diary)
         
     def about(self):
         error = QMessageBox(self)
@@ -264,9 +273,15 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
 
     def show_announcements(self):
         for announcement in trio_run(self.api.announcements):
-            print(type(announcement))
+            print(announcement.name)
+            print('\n')
             print(announcement.description)
-            print('\n\n\n\n\n')
+            print('\n')
+            print(announcement.author)
+            print('\n')
+
+    def show_diary(self):
+        print(Clear.diary(trio_run(self.api.diary)))
         
     def exit_the_programm(self):
         answer = QMessageBox.question(self, 'Выход',
@@ -277,6 +292,41 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
 
 
 class Clear:
+    def diary(diary):
+        '''
+        Преоброзавание json в очищенный словарь (json -->> dict)
+        '''
+        clear_diary = {}
+        daysoftheweek = {'Mon': 'Понедельник', 'Tue': 'Вторник',
+                         'Wed': 'Среда', 'Thu': 'Четверг',
+                         'Fri': 'Пятница', 'Sat': 'Суббота'}
+        
+        def get_weekday(date_):
+            date_ = date_.split('T')[0]
+            workdate = datetime.strptime(date_, "%Y-%m-%d")
+            return day_abbr[workdate.date().weekday()]
+
+        weekdays = diary['weekDays']
+        for day in weekdays:
+            dayoftheweek_string = daysoftheweek[get_weekday(day['date'])]
+            clear_diary[dayoftheweek_string] = {}
+            for lesson in day['lessons']:
+                lesson_name = Clear.lesson(lesson['subjectName'])
+                clear_diary[dayoftheweek_string][lesson_name] = {}
+                diary_lesson = clear_diary[dayoftheweek_string][lesson_name]
+                diary_lesson['number'] = lesson['number']
+                diary_lesson['time'] = (
+                    lesson['startTime'], lesson['endTime'])
+                if 'assignments' in lesson:
+                    diary_lesson['homework'] = []
+                    if lesson['assignments'][0]['mark'] != None:
+                        diary_lesson['mark'] = lesson['assignments'][0][
+                            'mark']['mark']
+                    for homework in lesson['assignments']:
+                        diary_lesson['homework'].append(
+                                homework['assignmentName'])
+        return clear_diary
+
     def login_or_password(string):
         forbidden_symbols = ' @{}|":>?<!@#$%^&*()_+=-'
         string = string.strip()
@@ -286,6 +336,21 @@ class Clear:
     
     def announcement(announcement_):
         return announcement_
+
+    def lesson(lesson):
+        '''
+        Упрощение названий предметов
+        '''
+        simplified_lessons = {'Практикум по русскому языку': 'Русский(П)',
+                             'Физическая культура': 'Физра',
+                             'Информатика и ИКТ': 'Информатика',
+                             'Родной язык (русский)': 'Русский',
+                             'Иностранный язык (английский)': 'Английский',
+                             'Основы безопасности жизнедеятельнос    ти': 'ОБЖ',
+                             'Родная литература(русская)': 'Литература'}
+        if lesson in simplified_lessons:
+            lesson = simplified_lessons[lesson]
+        return lesson
 
 if __name__ == '__main__':
     app = QApplication(argv)
