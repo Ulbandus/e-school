@@ -29,9 +29,6 @@ color: rgb(255, 255, 255);</string>
    <item>
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <widget class="QListWidget" name="info"/>
-     </item>
-     <item>
       <widget class="QLabel" name="main_icon">
        <property name="layoutDirection">
         <enum>Qt::LeftToRight</enum>

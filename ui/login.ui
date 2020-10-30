@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>405</width>
-    <height>341</height>
+    <height>361</height>
    </rect>
   </property>
   <property name="font">
@@ -138,6 +138,9 @@ gridline-color: rgb(255, 255, 255);</string>
        </property>
        <property name="text">
         <string>Вход</string>
+       </property>
+       <property name="shortcut">
+        <string>Return</string>
        </property>
        <property name="default">
         <bool>true</bool>

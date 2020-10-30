@@ -1,5 +1,5 @@
 from sys import argv, exit as sys_exit
-from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QLineEdit, QDialog
+from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QLineEdit, QDialog, QTableWidgetItem
 from PyQt5.uic import loadUi
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt
@@ -22,6 +22,22 @@ CITY = 'Кудрово, г.'
 FUNC = 'Общеобразовательная'
 
 
+class GDZ:
+    pass
+
+
+class Settings:
+    def cheater(self, mark):
+        mark = int(mark)
+        if mark != 5:
+            mark += 1
+        '''
+        if mark == 3:
+            mark += 1
+        '''
+        return mark
+
+
 class LenException(Exception):
     def __init__(self):
         self.text = "Слишком короткая строка"
@@ -41,6 +57,7 @@ class WrongLoginDataException(Exception):
     def __init__(self):
         self.text = "Неправильный логин или пароль"
 
+
 class DataBase:
     '''
     Выполнение command(string) в ./db/user_data.db 
@@ -50,7 +67,8 @@ class DataBase:
             cur = db.cursor()
             result = cur.execute(command).fetchall()
         return result
-        
+
+
 class Login(QWidget):
     '''
     Login Window
@@ -65,9 +83,10 @@ class Login(QWidget):
         *do_login - Login with login+password using NetSchoolAPI
         *show_error = Show error using QMessageBox
     '''
+
     def __init__(self):
         self.db_login = False
-        
+
         super(Login, self).__init__()
         loadUi('./ui/login.ui', self)
         self.design_setup()
@@ -85,8 +104,7 @@ class Login(QWidget):
         if account_selector.answer == True:
             return account_selector.login
         return False
-        
-        
+
     def db_passwords(self):
         database_info = DataBase.execute('SELECT * \nFROM users')
         if database_info != []:
@@ -94,11 +112,11 @@ class Login(QWidget):
             if login != False:
                 database_info = [user for user in database_info
                                  if login in user][0]
-                self.login_input.setEchoMode(QLineEdit.Password)                
+                self.login_input.setEchoMode(QLineEdit.Password)
                 self.login_view_checkbox.setChecked(True)
                 self.login_input.setText(database_info[0])
                 self.password_input.setText(database_info[1])
-                self.db_login = True                
+                self.db_login = True
 
     def design_setup(self):
         self.setWindowIcon(QIcon('./images/icon.ico'))
@@ -118,12 +136,12 @@ class Login(QWidget):
         if sender_name == 'password_view_checkbox':
             input_widget = self.password_input
         else:
-            input_widget = self.login_input            
+            input_widget = self.login_input
         if self.sender().isChecked():
             input_widget.setEchoMode(QLineEdit.Password)
         elif not self.db_login:
             input_widget.setEchoMode(QLineEdit.Normal)
-                
+
     def do_login(self):
         login = Clear.login_or_password(self.login_input.text())
         password = Clear.login_or_password(self.password_input.text())
@@ -172,9 +190,21 @@ class Login(QWidget):
 
 class ESchool:
     def __init__(self, login, password):
+        self.week = None
+        self.week_start = None
+        self.week_end = None
         self.api = NetSchoolAPI(URL)
         self.login = login
         self.password = password
+
+    async def get_attachments(self):
+        await self.api.login(login=self.login, password=self.password,
+                             school=SCHOOL, state=STATE, province=PROVINCE,
+                             city=CITY, func=FUNC)
+        attachments = await self.api.get_attachments(
+            [diary.weekDays[0].lessons[0].assignments[0].id])
+        await self.api.logout()
+        return diary
 
     def get_week(self):
         '''
@@ -184,11 +214,22 @@ class ESchool:
         '''
         today = date.today()
         week_start = today + timedelta(days=-today.weekday() - 7,
-                                      weeks=1)
+                                       weeks=1)
         week_end = today + timedelta(days=-today.weekday() - 1,
-                                    weeks=1)
-        print(week_start, week_end)
-        return datetime.strptime('2020-10-19', '%Y-%m-%d'), datetime.strptime('2020-10-25', '%Y-%m-%d')
+                                     weeks=1)
+        if self.week_start == None:
+            self.week_start = week_start
+        if self.week_end == None:
+            self.week_end = week_end
+        if self.week == 'next':
+            self.week_start += timedelta(days=7)
+            self.week_end += timedelta(days=7)
+            return self.week_start, self.week_end
+        elif self.week == 'previous':
+            self.week_start -= timedelta(days=7)
+            self.week_end -= timedelta(days=7)
+            return self.week_start, self.week_end
+        return week_start, week_end
 
     async def diary(self):
         await self.api.login(login=self.login, password=self.password,
@@ -207,7 +248,6 @@ class ESchool:
         return announcements
 
 
-
 class AccountSelector(QDialog):
     def __init__(self, parent):
         super().__init__(parent, Qt.Window)
@@ -219,8 +259,8 @@ class AccountSelector(QDialog):
         self.yes_button.clicked.connect(self.yes)
         self.no_button.clicked.connect(self.no)
         self.login_combobox.addItems(list(self.blure_logins(self.get_logins(
-            )).keys()))
-        
+        )).keys()))
+
     def blure_logins(self, logins):
         self.blured_logins = {}
         for login in logins:
@@ -230,18 +270,94 @@ class AccountSelector(QDialog):
                 blured_login_part, len(blured_login_part) * '*')
             self.blured_logins[blured_login] = login
         return self.blured_logins
-    
+
     def get_logins(self):
         return DataBase.execute('SELECT login \nFROM users')
-    
+
     def no(self):
         self.hide()
-    
+
     def yes(self):
         blured_login = self.login_combobox.currentText()
         self.login = self.blured_logins[blured_login]
         self.answer = True
         self.hide()
+
+
+class DiaryWindow(QWidget):
+    def __init__(self, parent, api):
+        super().__init__(parent, Qt.Window)
+        loadUi('./ui/diary.ui', self)
+        self.api = api
+        self.design_setup()
+
+    def design_setup(self):
+        day_headers = ['Время', 'Урок', 'Д/З', 'Оценки']
+        self.next_week.clicked.connect(self.show_next_week)
+        self.previous_week.clicked.connect(self.show_previous_week)
+        self.monday.setHorizontalHeaderLabels(day_headers)
+        self.tuesday.setHorizontalHeaderLabels(day_headers)
+        self.wednesday.setHorizontalHeaderLabels(day_headers)
+        self.thursday.setHorizontalHeaderLabels(day_headers)
+        self.friday.setHorizontalHeaderLabels(day_headers)
+        self.saturday.setHorizontalHeaderLabels(day_headers)
+        week_start, week_end = self.api.get_week()
+        y1, m1, d1 = week_start.year, week_start.month, week_start.day
+        y2, m2, d2 = week_end.year, week_end.month, week_end.day
+        self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
+        self.fill_the_tables()
+
+    def show_next_week(self):
+        self.api.week = 'next'
+        week_start, week_end = self.api.get_week()
+        self.api.week = None
+        y1, m1, d1 = week_start.year, week_start.month, week_start.day
+        y2, m2, d2 = week_end.year, week_end.month, week_end.day
+        self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
+        self.fill_the_tables('next')
+
+    def show_previous_week(self):
+        self.api.week = 'previous'
+        week_start, week_end = self.api.get_week()
+        self.api.week = None
+        y1, m1, d1 = week_start.year, week_start.month, week_start.day
+        y2, m2, d2 = week_end.year, week_end.month, week_end.day
+        self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
+        self.fill_the_tables('previous')
+
+    def fill_the_tables(self, week=''):
+        if week != '':
+            self.api.week = week
+            diary = Clear.diary(trio_run(self.api.diary))
+            self.api.week = None
+        else:
+            diary = Clear.diary(trio_run(self.api.diary))
+        days_and_widgets = {'Понедельник': self.monday,
+                            'Вторник': self.tuesday,
+                            'Среда': self.wednesday,
+                            'Четверг': self.thursday,
+                            'Пятница': self.friday,
+                            'Суббота': self.saturday}
+        for day in days_and_widgets:
+            vertical_headers = []
+            if day in diary:
+                for index, lesson in enumerate(diary[day]):
+                    name = lesson
+                    lesson = diary[day][lesson]
+                    days_and_widgets[day].setItem(index, 0, QTableWidgetItem(
+                        ' | '.join(lesson['time'])))
+                    days_and_widgets[day].setItem(
+                        index, 1, QTableWidgetItem(name))
+                    vertical_headers.append(str(lesson['number']))
+                    if 'homework' in lesson:
+                        days_and_widgets[day].setItem(
+                            index, 2, QTableWidgetItem('\n'.join(lesson[
+                                'homework'])))
+                    if 'mark' in lesson:
+                        days_and_widgets[day].setItem(
+                            index, 3, QTableWidgetItem(str(lesson['mark'])))
+            days_and_widgets[day].setVerticalHeaderLabels(vertical_headers)
+
 
 class MainMenu(QWidget):
     def __init__(self, parent, api):
@@ -257,7 +373,7 @@ class MainMenu(QWidget):
         self.exit_button.clicked.connect(self.exit_the_programm)
         self.about_button.clicked.connect(self.about)
         self.diary_button.clicked.connect(self.show_diary)
-        
+
     def about(self):
         error = QMessageBox(self)
         error.setIcon(QMessageBox.Information)
@@ -269,20 +385,21 @@ GitHub: https://github.com/Ulbandus/e-school\n---\n\
 Github(api): https://github.com/nm17/netschoolapi/\n\
 NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
 Программа создана при поддержке Яндекс.Лицей')
-        error.exec_()        
+        error.exec_()
 
     def show_announcements(self):
         for announcement in trio_run(self.api.announcements):
-            print(announcement.name)
-            print('\n')
-            print(announcement.description)
-            print('\n')
-            print(announcement.author)
-            print('\n')
+            announcement = Clear.announcement(announcement)
+            # TODO: Сделать графический вывод
+            print(announcement['name'])
+            print(announcement['description'])
+            print(announcement['author'])
 
     def show_diary(self):
-        print(Clear.diary(trio_run(self.api.diary)))
-        
+        self.hide()
+        diary_window = DiaryWindow(self, self.api)
+        diary_window.show()
+
     def exit_the_programm(self):
         answer = QMessageBox.question(self, 'Выход',
                                       'Вы уверены, что хотите выйти?',
@@ -300,7 +417,7 @@ class Clear:
         daysoftheweek = {'Mon': 'Понедельник', 'Tue': 'Вторник',
                          'Wed': 'Среда', 'Thu': 'Четверг',
                          'Fri': 'Пятница', 'Sat': 'Суббота'}
-        
+
         def get_weekday(date_):
             date_ = date_.split('T')[0]
             workdate = datetime.strptime(date_, "%Y-%m-%d")
@@ -319,12 +436,13 @@ class Clear:
                     lesson['startTime'], lesson['endTime'])
                 if 'assignments' in lesson:
                     diary_lesson['homework'] = []
-                    if lesson['assignments'][0]['mark'] != None:
-                        diary_lesson['mark'] = lesson['assignments'][0][
-                            'mark']['mark']
+                    for assignment in lesson['assignments']:
+                        if assignment['mark'] != None:
+                            diary_lesson['mark'] = assignment[
+                                'mark']['mark']
                     for homework in lesson['assignments']:
                         diary_lesson['homework'].append(
-                                homework['assignmentName'])
+                            homework['assignmentName'])
         return clear_diary
 
     def login_or_password(string):
@@ -333,24 +451,29 @@ class Clear:
         for forbidden_sym in forbidden_symbols:
             string = string.replace(forbidden_sym, '')
         return string
-    
+
     def announcement(announcement_):
-        return announcement_
+        result = {}
+        result['name'] = announcement_.name
+        result['author'] = announcement_.author
+        result['description'] = announcement_.description
+        return result
 
     def lesson(lesson):
         '''
         Упрощение названий предметов
         '''
         simplified_lessons = {'Практикум по русскому языку': 'Русский(П)',
-                             'Физическая культура': 'Физра',
-                             'Информатика и ИКТ': 'Информатика',
-                             'Родной язык (русский)': 'Русский',
-                             'Иностранный язык (английский)': 'Английский',
-                             'Основы безопасности жизнедеятельнос    ти': 'ОБЖ',
-                             'Родная литература(русская)': 'Литература'}
+                              'Физическая культура': 'Физра',
+                              'Информатика и ИКТ': 'Информатика',
+                              'Родной язык (русский)': 'Русский',
+                              'Иностранный язык (английский)': 'Английский',
+                              'Основы безопасности жизнедеятельнос    ти': 'ОБЖ',
+                              'Родная литература(русская)': 'Литература'}
         if lesson in simplified_lessons:
             lesson = simplified_lessons[lesson]
         return lesson
+
 
 if __name__ == '__main__':
     app = QApplication(argv)
