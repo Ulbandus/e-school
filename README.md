@@ -58,6 +58,6 @@
 В ближайшем будущем...
 
 ##  Просмотр оценок и расписания
-![Diary](https://i.imgur.com/wPXzBTq.jpg
+![Diary](https://i.imgur.com/wPXzBTq.jpg)
 # Быстрый  доступ к ГДЗ
 В ближайшем будущем...
