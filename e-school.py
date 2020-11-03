@@ -24,6 +24,37 @@ CITY = 'Кудрово, г.'
 FUNC = 'Общеобразовательная'
 
 
+class Cheat:
+    def up_marks(diary, mode):
+        mode = str(mode)
+        if mode == '3>':
+            diary = Cheat.delete(diary, '2')
+        elif mode == '4>':
+            diary = Cheat.delete(diary, '2')
+            diary = Cheat.delete(diary, '3')
+        elif mode == '4':
+            diary = Cheat.replace(diary, '4')
+        elif mode == '5':
+            diary = Cheat.replace(diary, '5')
+        return diary
+
+    def delete(diary, mark):
+        print(f'delete {mark}')
+        for day in diary:
+            for lesson in diary[day]:
+                if 'mark' in diary[day][lesson]:
+                    if diary[day][lesson]['mark'] == mark:
+                        diary[day][lesson].pop('mark')
+        return diary
+    
+    def replace(diary, mark):
+        print(f'replace {mark}')
+        for day in diary:
+            for lesson in diary[day]:
+                if 'mark' in diary[day][lesson]:
+                    diary[day][lesson]['mark'] = mark
+        return diary
+
 class GDZ:
     '''
     Get url/png of gdz by selected book and exersise
@@ -318,12 +349,14 @@ class DiaryWindow(QWidget):
     '''
     def __init__(self, parent, api):
         super().__init__(parent, Qt.Window)
+        self.parent = parent
         loadUi('./ui/diary.ui', self)
         self.api = api
         self.settings_started = False
         self.last_next_week_show = 100000000 ** 2
         self.last_previous_week_show = 100000000 ** 2
         self.design_setup()
+
 
     def design_setup(self):
         self.set_headers()
@@ -362,7 +395,7 @@ class DiaryWindow(QWidget):
     def show_settings(self):
         if self.settings_started:
             return
-        setting_window = SettingsWindow(self)
+        setting_window = SettingsWindow(self, self.api, self.parent)
         setting_window.show()
         self.hide()
         self.settings_started = True
@@ -383,12 +416,17 @@ class DiaryWindow(QWidget):
         self.last_previous_week_show = time()
 
     def fill_the_tables(self, week=''):
+        settings_ = GetSettings()
+        cheat_mode = settings_.cheat_mode
+
         if week != '':
             self.api.week = week
-            diary = Clear.diary(trio_run(self.api.diary))
+            diary = Cheat.up_marks(Clear.diary(trio_run(self.api.diary)),
+                                   cheat_mode)
             self.api.week = None
         else:
-            diary = Clear.diary(trio_run(self.api.diary))
+            diary = Cheat.up_marks(Clear.diary(trio_run(self.api.diary)),
+                                   cheat_mode)
         days_and_widgets = {'Понедельник': self.monday,
                             'Вторник': self.tuesday,
                             'Среда': self.wednesday,
@@ -567,14 +605,22 @@ class SettingsWindow(QWidget):
         *design_setup - Customizes the design
         *save - Save cheat and edit modes in settings.ini
     '''
-    def __init__(self, parent):
+    def __init__(self, parent, api, parent_):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/settings.ui', self)
+        self.api = api
+        self.parent = parent
         self.design_setup()
 
     def design_setup(self):
         self.save_button.clicked.connect(self.save)
-
+        
+    def closeEvent(self, event):
+        event.ignore()
+        self.hide()
+        diary_window = DiaryWindow(self.parent, self.api)
+        diary_window.show()
+    
     def save(self):
         editable = self.edit_mode.isChecked()
         if editable:
@@ -593,9 +639,16 @@ class SettingsWindow(QWidget):
             cheat_state = '4>'
         with open('settings.ini', 'w') as file:
             file.write(f'''[E-School]
-cheater="{cheat_state}"
-editable="{editable}"''')
+cheater={cheat_state}
+editable={editable}''')
 
+class GetSettings:
+    def __init__(self):
+        configs = ConfigParser()
+        configs.read('./settings.ini')
+        self.cheat_mode = configs['E-School']['cheater']
+        self.edit_mode = configs['E-School']['editable']
+        
 if __name__ == '__main__':
     app = QApplication(argv)
     login = Login()
