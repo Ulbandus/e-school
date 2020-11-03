@@ -7,6 +7,8 @@ from PyQt5.QtCore import Qt
 from string import ascii_lowercase
 from datetime import datetime, timedelta, date
 from json import encoder
+from time import time
+from configparser import ConfigParser
 
 from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
@@ -24,18 +26,6 @@ FUNC = 'Общеобразовательная'
 
 class GDZ:
     pass
-
-
-class Settings:
-    def cheater(self, mark):
-        mark = int(mark)
-        if mark != 5:
-            mark += 1
-        '''
-        if mark == 3:
-            mark += 1
-        '''
-        return mark
 
 
 class LenException(Exception):
@@ -152,9 +142,9 @@ class Login(QWidget):
             self.show_error(WrongLoginDataException().text)
         except Exception as error:
             try:
-                self.show_error(error.text)
+                raise error
             except:
-                self.show_error(str(error))
+                raise error
         else:
             self.start_main_menu(login, password)
 
@@ -191,20 +181,26 @@ class Login(QWidget):
 class ESchool:
     def __init__(self, login, password):
         self.week = None
-        self.week_start = None
-        self.week_end = None
+        today = date.today()
+        week_start = today + timedelta(days=-today.weekday() - 7,
+                                          weeks=1)
+        week_end = today + timedelta(days=-today.weekday() - 1,
+                                        weeks=1)        
+        self.week_start = week_start
+        self.week_end = week_end
         self.api = NetSchoolAPI(URL)
         self.login = login
         self.password = password
-
-    async def get_attachments(self):
+        trio_run(self.api_login)
+        
+    async def api_login(self):
         await self.api.login(login=self.login, password=self.password,
                              school=SCHOOL, state=STATE, province=PROVINCE,
                              city=CITY, func=FUNC)
-        attachments = await self.api.get_attachments(
-            [diary.weekDays[0].lessons[0].assignments[0].id])
-        await self.api.logout()
-        return diary
+
+    async def get_attachments(self, id_):
+        attachments = await self.api.get_attachments(id_)
+        return attachments
 
     def get_week(self):
         '''
@@ -214,37 +210,26 @@ class ESchool:
         '''
         today = date.today()
         week_start = today + timedelta(days=-today.weekday() - 7,
-                                       weeks=1)
+                                          weeks=1)
         week_end = today + timedelta(days=-today.weekday() - 1,
-                                     weeks=1)
-        if self.week_start == None:
-            self.week_start = week_start
-        if self.week_end == None:
-            self.week_end = week_end
-        if self.week == 'next':
-            self.week_start += timedelta(days=7)
-            self.week_end += timedelta(days=7)
-            return self.week_start, self.week_end
-        elif self.week == 'previous':
-            self.week_start -= timedelta(days=7)
-            self.week_end -= timedelta(days=7)
+                                        weeks=1)
+        if self.week != None:
+            if self.week == 'next':
+                self.week_start += timedelta(days=7)
+                self.week_end += timedelta(days=7)
+            elif self.week == 'previous':
+                self.week_start -= timedelta(days=7)
+                self.week_end -= timedelta(days=7)
+            self.week = None
             return self.week_start, self.week_end
         return week_start, week_end
 
     async def diary(self):
-        await self.api.login(login=self.login, password=self.password,
-                             school=SCHOOL, state=STATE, province=PROVINCE,
-                             city=CITY, func=FUNC)
         diary = await self.api.get_diary(*self.get_week())
-        await self.api.logout()
         return diary
 
     async def announcements(self):
-        await self.api.login(login=self.login, password=self.password,
-                             school=SCHOOL, state=STATE, province=PROVINCE,
-                             city=CITY, func=FUNC)
         announcements = await self.api.get_announcements()
-        await self.api.logout()
         return announcements
 
 
@@ -289,10 +274,21 @@ class DiaryWindow(QWidget):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/diary.ui', self)
         self.api = api
+        self.last_next_week_show = 100000000 ** 2
+        self.last_previous_week_show = 100000000 ** 2
         self.design_setup()
 
     def design_setup(self):
+        self.set_headers()
+        week_start, week_end = self.api.get_week()
+        y1, m1, d1 = week_start.year, week_start.month, week_start.day
+        y2, m2, d2 = week_end.year, week_end.month, week_end.day
+        self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
+        self.fill_the_tables()
+        
+    def set_headers(self):
         day_headers = ['Время', 'Урок', 'Д/З', 'Оценки']
+        self.settings_button.clicked.connect(self.show_settings)
         self.next_week.clicked.connect(self.show_next_week)
         self.previous_week.clicked.connect(self.show_previous_week)
         self.monday.setHorizontalHeaderLabels(day_headers)
@@ -301,29 +297,39 @@ class DiaryWindow(QWidget):
         self.thursday.setHorizontalHeaderLabels(day_headers)
         self.friday.setHorizontalHeaderLabels(day_headers)
         self.saturday.setHorizontalHeaderLabels(day_headers)
-        week_start, week_end = self.api.get_week()
-        y1, m1, d1 = week_start.year, week_start.month, week_start.day
-        y2, m2, d2 = week_end.year, week_end.month, week_end.day
-        self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
-        self.fill_the_tables()
 
     def show_next_week(self):
+        if abs(self.last_next_week_show - time() // 1) <= 2:
+            return
         self.api.week = 'next'
         week_start, week_end = self.api.get_week()
+        self.api.week = 'previous'
+        self.api.get_week()
         self.api.week = None
         y1, m1, d1 = week_start.year, week_start.month, week_start.day
         y2, m2, d2 = week_end.year, week_end.month, week_end.day
         self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
         self.fill_the_tables('next')
+        self.last_next_week_show = time()
+        
+    def show_settings(self):
+        self.hide()
+        setting_window = SettingsWindow(self)
+        setting_window.show()
 
     def show_previous_week(self):
+        if abs(self.last_previous_week_show - time() // 1) <= 2:
+            return
         self.api.week = 'previous'
         week_start, week_end = self.api.get_week()
+        self.api.week = 'next'
+        self.api.get_week()
         self.api.week = None
         y1, m1, d1 = week_start.year, week_start.month, week_start.day
         y2, m2, d2 = week_end.year, week_end.month, week_end.day
         self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
         self.fill_the_tables('previous')
+        self.last_previous_week_show = time()
 
     def fill_the_tables(self, week=''):
         if week != '':
@@ -339,6 +345,10 @@ class DiaryWindow(QWidget):
                             'Пятница': self.friday,
                             'Суббота': self.saturday}
         for day in days_and_widgets:
+            days_and_widgets[day].clear()
+            days_and_widgets[day].setColumnCount(4)
+            days_and_widgets[day].setRowCount(7)
+            self.set_headers()
             vertical_headers = []
             if day in diary:
                 for index, lesson in enumerate(diary[day]):
@@ -429,12 +439,14 @@ class Clear:
             clear_diary[dayoftheweek_string] = {}
             for lesson in day['lessons']:
                 lesson_name = Clear.lesson(lesson['subjectName'])
+                if lesson_name in clear_diary[dayoftheweek_string]:
+                    lesson_name += ' '
                 clear_diary[dayoftheweek_string][lesson_name] = {}
                 diary_lesson = clear_diary[dayoftheweek_string][lesson_name]
                 diary_lesson['number'] = lesson['number']
                 diary_lesson['time'] = (
                     lesson['startTime'], lesson['endTime'])
-                if 'assignments' in lesson:
+                if 'assignments' in lesson:        
                     diary_lesson['homework'] = []
                     for assignment in lesson['assignments']:
                         if assignment['mark'] != None:
@@ -474,6 +486,20 @@ class Clear:
             lesson = simplified_lessons[lesson]
         return lesson
 
+
+class SettingsWindow(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent, Qt.Window)
+        loadUi('./ui/settings.ui', self)
+        self.design_setup()
+
+    def design_setup(self):
+        self.save_button.clicked.connect(self.save)
+        
+    def save(self):
+        self.editable = self.edit_mode.isChecked()
+        self.cheat_off.
+        print(self.editable)
 
 if __name__ == '__main__':
     app = QApplication(argv)

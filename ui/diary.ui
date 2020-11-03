@@ -522,7 +522,7 @@ color: rgb(36, 48, 83)</string>
     <enum>Qt::Horizontal</enum>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton">
+  <widget class="QPushButton" name="settings_button">
    <property name="geometry">
     <rect>
      <x>1100</x>
@@ -544,10 +544,10 @@ color: rgb(36, 48, 83)</string>
 color: rgb(36, 48, 83)</string>
    </property>
    <property name="text">
-    <string>Обновить</string>
+    <string>Настройки</string>
    </property>
   </widget>
-  <zorder>pushButton</zorder>
+  <zorder>settings_button</zorder>
   <zorder>monday</zorder>
   <zorder>tuesday</zorder>
   <zorder>wednesday</zorder>
