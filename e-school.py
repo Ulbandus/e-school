@@ -25,25 +25,34 @@ FUNC = 'Общеобразовательная'
 
 
 class GDZ:
+    '''
+    Get url/png of gdz by selected book and exersise
+    '''
     pass
 
 
 class LenException(Exception):
+    '''Password or login too short and does'nt meet security standards'''
     def __init__(self):
         self.text = "Слишком короткая строка"
 
 
 class DigitException(Exception):
+    '''There are no numbers in the login or password, which is a security
+       violation'''
     def __init__(self):
         self.text = "В строке отсутсвуют цифры"
 
 
 class LetterException(Exception):
+    '''There are no letters in the login or password, which is a security
+       violation'''
     def __init__(self):
         self.text = "В строке отсутсвуют буквы"
 
 
 class WrongLoginDataException(Exception):
+    '''Can't use login or password for login'''
     def __init__(self):
         self.text = "Неправильный логин или пароль"
 
@@ -162,10 +171,14 @@ class Login(QWidget):
         error.exec_()
 
     def verify(self, string):
-        '''
-        Проверка соответствует ли условиям логин или пароль
-        input: string
-        output: bool
+        '''Проверка соответствует ли условиям логин или пароль
+        
+        Parameters:
+        string (str): Login or password which need verification
+        
+        Returns:
+        bool: Bool value indicating whether the password or login is suitable
+              for security requirements
         '''
         ru_lowercase = 'ёйцукенгшщзхъфывапролджэячсмитьбю'
         if len(string) <= 6:
@@ -179,6 +192,19 @@ class Login(QWidget):
 
 
 class ESchool:
+    '''Work with API
+    Parameters:
+        login (str): e-school correct login
+        password (str): e-school correct password
+    
+    Methods:
+        *announcements(async): Return school announcements
+        *api_login(async): Log-in into e-school using api
+        *diary(async): Get diary from e-school servers using api
+        *get_attachments(async): Get file by id
+        *get_week: Get current week or week
+    
+    '''
     def __init__(self, login, password):
         self.week = None
         today = date.today()
@@ -203,10 +229,10 @@ class ESchool:
         return attachments
 
     def get_week(self):
-        '''
-        Получение текущей недели
-        input: -
-        otput: datetime object
+        '''Получение текущей недели
+        
+         Returns:
+             datetime object:Current week start and end
         '''
         today = date.today()
         week_start = today + timedelta(days=-today.weekday() - 7,
@@ -234,6 +260,15 @@ class ESchool:
 
 
 class AccountSelector(QDialog):
+    '''Select cached accounts from user_data.db
+    
+    Methods:
+        *blure_logins - Replace login center to * [Example --> Ex***le]
+        *design_setup - Customizes the design
+        *get_logins - Get login list from user_data.db
+        *no - Hide this Window
+        *yes - Select account
+    '''
     def __init__(self, parent):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/accout_selector.ui', self)
@@ -270,10 +305,22 @@ class AccountSelector(QDialog):
 
 
 class DiaryWindow(QWidget):
+    '''Show diary. You can switch weeks using '-->'/'<--' buttons
+    
+    Methods:
+        *design_setup - Customizes the design
+        *fill_the_tables - Fill the tables with data(data) received from api
+        *set_headers - Set horizontal and vertical headers
+        *show_next_week - Show next week
+        *show_previous_week - Show previous week
+        *show_settings - Show settings Window
+    
+    '''
     def __init__(self, parent, api):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/diary.ui', self)
         self.api = api
+        self.settings_started = False
         self.last_next_week_show = 100000000 ** 2
         self.last_previous_week_show = 100000000 ** 2
         self.design_setup()
@@ -313,9 +360,13 @@ class DiaryWindow(QWidget):
         self.last_next_week_show = time()
         
     def show_settings(self):
-        self.hide()
+        if self.settings_started:
+            return
         setting_window = SettingsWindow(self)
         setting_window.show()
+        self.hide()
+        self.settings_started = True
+
 
     def show_previous_week(self):
         if abs(self.last_previous_week_show - time() // 1) <= 2:
@@ -370,6 +421,16 @@ class DiaryWindow(QWidget):
 
 
 class MainMenu(QWidget):
+    '''Main menu
+    
+    Methods:
+        *about - Show Information about programm and api creators
+        *design_setup - Customizes the design
+        *exit_the_programm - Exit Window
+        *show_announcements - Show announcements using PyQt5 window
+        *show_diary - Run diary window
+    
+    '''
     def __init__(self, parent, api):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/main_menu.ui', self)
@@ -420,9 +481,16 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
 
 class Clear:
     def diary(diary):
+        '''Преоброзавание json в очищенный словарь (json -->> dict)
+
+        Parameter:
+        diary (dict): json dictionary with extra data
+    
+        Return:
+        dict:Returning dict only with the data you need
+        Days, lessons, lesson start and end time, marks
         '''
-        Преоброзавание json в очищенный словарь (json -->> dict)
-        '''
+        # TODO: Add files id
         clear_diary = {}
         daysoftheweek = {'Mon': 'Понедельник', 'Tue': 'Вторник',
                          'Wed': 'Среда', 'Thu': 'Четверг',
@@ -472,8 +540,13 @@ class Clear:
         return result
 
     def lesson(lesson):
-        '''
-        Упрощение названий предметов
+        '''Упрощение названий предметов
+        
+         Parameter:
+         lesson (string): Complex name of the subject
+     
+         Returns:
+         string: Simplified item name
         '''
         simplified_lessons = {'Практикум по русскому языку': 'Русский(П)',
                               'Физическая культура': 'Физра',
@@ -488,6 +561,12 @@ class Clear:
 
 
 class SettingsWindow(QWidget):
+    '''Let you select cheat mode and edit mode
+    
+    Methods:
+        *design_setup - Customizes the design
+        *save - Save cheat and edit modes in settings.ini
+    '''
     def __init__(self, parent):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/settings.ui', self)
@@ -495,11 +574,27 @@ class SettingsWindow(QWidget):
 
     def design_setup(self):
         self.save_button.clicked.connect(self.save)
-        
+
     def save(self):
-        self.editable = self.edit_mode.isChecked()
-        self.cheat_off.
-        print(self.editable)
+        editable = self.edit_mode.isChecked()
+        if editable:
+            editable = 'yes'
+        editable = 'no'
+        cheat_state = None
+        if self.cheat_off.isChecked():
+            cheat_state = 'off'
+        elif self.only_five.isChecked():
+            cheat_state = '5'
+        elif self.only_four.isChecked():
+            cheat_state = '4'
+        elif self.three_and_more.isChecked():
+            cheat_state = '3>'
+        elif self.four_and_more.isChecked():
+            cheat_state = '4>'
+        with open('settings.ini', 'w') as file:
+            file.write(f'''[E-School]
+cheater="{cheat_state}"
+editable="{editable}"''')
 
 if __name__ == '__main__':
     app = QApplication(argv)

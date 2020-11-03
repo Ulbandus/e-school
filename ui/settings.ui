@@ -80,7 +80,7 @@ color: rgb(255, 255, 255);</string>
       </widget>
      </item>
      <item>
-      <widget class="QRadioButton" name="only_4">
+      <widget class="QRadioButton" name="only_four">
        <property name="font">
         <font>
          <family>Segoe UI Semibold</family>
