@@ -134,6 +134,11 @@ class DataBase:
         self.db_path = './db/user_data.db'
         self.key_words = ['SELECT', 'FROM', 'INTO', 'DROP', 'CREATE',
                           'UPDATE']
+        
+    def get_files(self):
+        return self.execute(f'''
+        SELECT path, name, type, day, lesson, id
+        FROM cache''')
 
     def check_safety(self, check_list):
         '''Check if list items in special sql word list
@@ -178,6 +183,13 @@ class DataBase:
         Gets the logins of the users who specified the auto login
         '''
         return self.execute('SELECT login \nFROM users\nWHERE auto_login=1')
+    
+    def isNewfile(self, attachment, day, lesson):
+        files = self.get_files()
+        for file in files:
+            if file[0] == f'./files/{attachment.originalFileName}':
+                return False
+        return True
 
     def add_file(self, attachment, day, lesson):
         '''Add file path, name, extension, id, day, lesson in table 'cache' 
@@ -192,6 +204,8 @@ class DataBase:
                                                 passed sql injection test) 
         '''
         if not self.check_safety([attachment, day, lesson]):
+            return
+        if not self.isNewfile(attachment, day, lesson):
             return
         path = f'./files/{attachment.originalFileName}'
         name = attachment.name
@@ -225,7 +239,6 @@ class DataBase:
         user = self.get_user_data(login, password, True)
         if user != False:
             if str(user[4]) == '0':
-                print(user)                
                 self.execute(f'''
                 UPDATE users 
                 SET auto_login = 1 
@@ -565,6 +578,7 @@ class DiaryWindow(QWidget):
         
         self.parent = parent
         self.api = api
+        self.db = DataBase()
         self.settings_started = False
         self.last_next_week_show = 100000000 ** 2
         self.last_previous_week_show = 100000000 ** 2
@@ -601,6 +615,15 @@ class DiaryWindow(QWidget):
         self.thursday.setHorizontalHeaderLabels(self.day_headers)
         self.friday.setHorizontalHeaderLabels(self.day_headers)
         self.saturday.setHorizontalHeaderLabels(self.day_headers)
+
+    def color_files(self):
+        files = self.db.get_files()
+        for file in files:
+            table = self.days_and_widgets[file[3]]
+            for i in range(1, table.rowCount() + 1):
+                if None != table.item(i, 1):
+                    if table.item(i, 1).text() == file[4]:
+                        table.item(i, 1).setBackground(Qt.yellow)
 
     def show_next_week(self):
         if abs(self.last_next_week_show - time() // 1) <= 2:
@@ -674,6 +697,8 @@ class DiaryWindow(QWidget):
                             index, 3, QTableWidgetItem(str(lesson['mark'])))
             self.days_and_widgets[day].setVerticalHeaderLabels(
                 vertical_headers)
+        self.color_files()
+            
 '''
 # TODO: Показ файла по двойному нажатию + покрас урока с файлом(желтым)
     def eventFilter(self, watched, event):
