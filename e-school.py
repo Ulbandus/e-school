@@ -1,3 +1,4 @@
+# Pyqt5
 from sys import argv, exit as sys_exit
 from PyQt5.QtWidgets import (QWidget, QApplication, QMessageBox, QLineEdit,
                              QDialog, QTableWidgetItem)
@@ -5,6 +6,7 @@ from PyQt5.uic import loadUi
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QEvent
 
+# Built-in libraries
 from string import ascii_lowercase
 from datetime import datetime, timedelta, date
 from json import encoder
@@ -12,17 +14,22 @@ from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
 
+# NetSchoolAPI(nm17)
 from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
 from sqlite3 import connect
 from calendar import day_abbr
 
+# School URL
 URL = 'https://e-school.obr.lenreg.ru/'
+# School name
 SCHOOL = 'МОБУ "СОШ "ЦО "Кудрово"'
+# Location
 STATE = 'Ленинградская обл'
 PROVINCE = 'Всеволожский район'
 CITY = 'Кудрово, г.'
+# School focus
 FUNC = 'Общеобразовательная'
 
 
@@ -121,15 +128,22 @@ class WrongLoginDataException(Exception):
 class DataBase:
     __slots__ = ['db_path', 'key_words']
     '''
-    Выполнение command(string) в ./db/user_data.db 
+    Work with DataBase('./db/user_data.db')
     '''
-
     def __init__(self):
         self.db_path = './db/user_data.db'
         self.key_words = ['SELECT', 'FROM', 'INTO', 'DROP', 'CREATE',
                           'UPDATE']
 
     def check_safety(self, check_list):
+        '''Check if list items in special sql word list
+        
+        Parameters:
+        check_list (list) 
+
+        Returns:
+        (Bool): Is list items safe or not
+        '''
         for item in check_list:
             item = str(item)
             for wrong_word in self.key_words:
@@ -139,18 +153,44 @@ class DataBase:
 
 
     def execute(self, command):
+        '''Run command(string)
+        
+        Parameters:
+        command (str): Sql query  
+
+        Returns:
+        (Bool): Query result
+        
+        '''
         with connect(self.db_path) as db:
             cur = db.cursor()
             result = cur.execute(command).fetchall()
         return result
 
     def get_all_info(self):
+        '''
+        Gets the data of the users who specified the auto login
+        '''
         return self.execute('SELECT * \nFROM users\nWHERE auto_login=1')
 
     def get_login(self):
+        '''
+        Gets the logins of the users who specified the auto login
+        '''
         return self.execute('SELECT login \nFROM users\nWHERE auto_login=1')
 
     def add_file(self, attachment, day, lesson):
+        '''Add file path, name, extension, id, day, lesson in table 'cache' 
+        
+        Parameters:
+        attachment (Attachment(user class)): Attachment with name, id, extension
+        day (str): Lesson day with file
+        lesson (str): Lesson with file
+
+        Returns:
+        id_ (int): File id in database or None (If attachment/lesson/day don't
+                                                passed sql injection test) 
+        '''
         if not self.check_safety([attachment, day, lesson]):
             return
         path = f'./files/{attachment.originalFileName}'
@@ -166,6 +206,17 @@ class DataBase:
         return id_
 
     def add_user(self, login, password, class_, school, auto_login, id_):
+        '''Add user data in table 'users' 
+        
+        Parameters:
+        login (str): User login
+        password (str): User password
+        class_ (str): User class (in school)
+        school (str): User school
+        auto_login (bool): Whether the user wants to automatically login
+        id_ (int): User unique id in DataBase
+
+        '''
         if '' in [login.strip(), password.strip()]:
             return
         if not self.check_safety([login, password, class_, school,
@@ -191,6 +242,9 @@ class DataBase:
         ''')
 
     def get_user_data(self, login, password, auto_login_users=False):
+        '''
+        Gets the data of a specific user
+        '''
         if auto_login_users:
             user = self.execute(f'''
             SELECT login, password, class, school, auto_login, id
