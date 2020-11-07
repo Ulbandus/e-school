@@ -267,7 +267,7 @@ class DataBase:
             user = self.execute(f'''
         SELECT login, password, class, school, auto_login, id
         FROM users
-        WHERE login = '{login}' AND password = '{password}' and auto_login=True
+        WHERE login = '{login}' AND password = '{password}' and auto_login=1
         ''')
         if user == []:
             return False
