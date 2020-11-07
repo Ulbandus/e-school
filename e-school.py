@@ -135,6 +135,9 @@ class DataBase:
                           'UPDATE']
         
     def get_files(self):
+        '''
+        Get all files from database
+        '''
         return self.execute(f'''
         SELECT path, name, type, day, lesson, id
         FROM cache''')
