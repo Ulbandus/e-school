@@ -51,15 +51,15 @@
 
 *В android*
 
-`1)Установи Pydroid 3 (https://goo.su/2uNy) и Pydroid rep. plugin (https://goo.su/2UNZ)`
+1)Установи Pydroid 3 (https://goo.su/2uNy) и Pydroid rep. plugin (https://goo.su/2UNZ)
 
-`2) Перейди по https://github.com/Ulbandus/e-school/archive/main.zip и скачай архив с программой`
+2) Перейди по https://github.com/Ulbandus/e-school/archive/main.zip и скачай архив с программой
 
-`3) Распакуй архив`
+3) Распакуй архив
 
-`4)Установи Pyqt5, netschoolapi, trio в меню pip/install`
+4)Установи Pyqt5, netschoolapi, trio в меню pip/install
 
-`7)Открой e-school.py в Pydroid и запусти`
+7)Открой e-school.py в Pydroid и запусти
 
 
 
