@@ -9,7 +9,6 @@ from PyQt5.QtCore import Qt, QEvent
 # Built-in libraries
 from string import ascii_lowercase
 from datetime import datetime, timedelta, date
-from json import encoder
 from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
@@ -700,7 +699,7 @@ class DiaryWindow(QWidget):
         self.color_files()
             
 '''
-# TODO: Показ файла по двойному нажатию + покрас урока с файлом(желтым)
+# TODO: Показ файла по двойному нажатию
     def eventFilter(self, watched, event):
         if watched in self.tables and event.type(
             ) == QEvent.MouseButtonDblClick:
