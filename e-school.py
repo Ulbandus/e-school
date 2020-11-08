@@ -23,8 +23,9 @@ from trio import run as trio_run
 # Other
 from sqlite3 import connect
 from calendar import day_abbr
-from git import Git
+from subprocess import call
 
+from updater import Updater
 
 # School URL
 URL = 'https://e-school.obr.lenreg.ru/'
@@ -748,7 +749,29 @@ class MainMenu(QWidget):
         self.announcments_button.clicked.connect(self.show_announcements)
         self.exit_button.clicked.connect(self.exit_the_programm)
         self.about_button.clicked.connect(self.about)
+        self.check_updates.clicked.connect(self.update_programm)
         self.diary_button.clicked.connect(self.show_diary)
+
+    def show_error(self, text):
+        error = QMessageBox(self)
+        error.setIcon(QMessageBox.Critical)
+        error.setText(text)
+        error.setWindowTitle('Error')
+        error.exec_()    
+        
+    def update_programm(self):
+        updater = Updater()
+        if updater.cur_version >= updater.new_version:
+            self.show_error('Обновлений не обнаружено')
+        elif updater.cur_version < updater.new_version:
+            self.show_error(
+                f'''Обновление...
+{updater.cur_version} --> {updater.new_version}
+Программа будет перезапущена''')
+            call('updater.py', shell=True)
+            self.destroy()
+            exit()
+
 
     def about(self):
         self.error.setIcon(QMessageBox.Information)
@@ -912,6 +935,7 @@ class SettingsWindow(QWidget):
         diary_window.show()
 
     def save(self):
+        version = '0.44'
         editable = self.edit_mode.isChecked()
         if editable:
             editable = 'yes'
@@ -930,7 +954,8 @@ class SettingsWindow(QWidget):
         with open('settings.ini', 'w') as file:
             file.write(f'''[E-School]
 cheater={cheat_state}
-editable={editable}''')
+editable={editable}
+version={version}''')
 
 
 class GetSettings:
@@ -950,7 +975,6 @@ class GetSettings:
 
 if __name__ == '__main__':
     Setup()
-    exit()
     app = QApplication(argv)
     login = Login()
     login.show()
