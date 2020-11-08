@@ -12,13 +12,19 @@ from datetime import datetime, timedelta, date
 from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
+from os.path import exists
+from os import mkdir
 
 # NetSchoolAPI(nm17)
 from netschoolapi import NetSchoolAPI
 from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
+
+# Other
 from sqlite3 import connect
 from calendar import day_abbr
+from git import Git
+
 
 # School URL
 URL = 'https://e-school.obr.lenreg.ru/'
@@ -31,13 +37,17 @@ CITY = 'Кудрово, г.'
 # School focus
 FUNC = 'Общеобразовательная'
 
+class Setup:
+    __slots__ = []
+    def __init__(self):
+        if not exists('./files'):
+            mkdir('./files')
 
 class Cheat:
     __slots__ = []
-    
+
     def __init__(self):
         pass
-
     def up_marks(self, diary, mode):
         '''Delete/Replace mark from diary
         
@@ -48,7 +58,7 @@ class Cheat:
         Returns:
         diary (dict): modified diary without selected mark or with
                       replaced marks
-        '''        
+        '''
         mode = str(mode)
         if mode == '3>':
             diary = self.delete(diary, '2')
@@ -939,10 +949,9 @@ class GetSettings:
 
 
 if __name__ == '__main__':
+    Setup()
+    exit()
     app = QApplication(argv)
     login = Login()
     login.show()
     sys_exit(app.exec_())
-
-
-# TODO: Содзать help
