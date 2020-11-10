@@ -13,7 +13,9 @@ from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
 from os.path import exists
-from os import mkdir
+from os import mkdir, listdir
+from time import sleep
+from httpx import ConnectTimeout
 
 # NetSchoolAPI(nm17)
 from netschoolapi import NetSchoolAPI
@@ -23,8 +25,9 @@ from trio import run as trio_run
 # Other
 from sqlite3 import connect
 from calendar import day_abbr
-from subprocess import call
+from subprocess import call, run
 
+# Python file
 from updater import Updater
 
 # School URL
@@ -49,8 +52,9 @@ class Cheat:
 
     def __init__(self):
         pass
+    
     def up_marks(self, diary, mode):
-        '''Delete/Replace mark from diary
+        '''Run modify function with special parameters 
         
         Parameters:
         diary (dict): Login or password which need verification
@@ -62,36 +66,39 @@ class Cheat:
         '''
         mode = str(mode)
         if mode == '3>':
-            diary = self.delete(diary, '2')
+            diary = self.modify(diary, '2', 'delete')
         elif mode == '4>':
-            diary = self.delete(diary, '2')
-            diary = self.delete(diary, '3')
+            diary = self.modify(diary, '2', 'delete')
+            diary = self.modify(diary, '3', 'delete')
         elif mode == '4':
-            diary = self.replace(diary, '4')
+            diary = self.modify(diary, '4', 'replace')
         elif mode == '5':
-            diary = self.replace(diary, '5')
+            diary = self.modify(diary, '5', 'replace')
         return diary
 
-    def delete(self, diary, mark):
-        # Перебор ключей словаря (Не словарей!)
+    def modify(self, diary, mark, method):
+        '''Delete/Replace mark from diary
+        
+        Parameters:
+        diary (dict): Login or password which need modification
+        mark (str): Mark to be removed/replaced
+        method (str): 'delete'/'replace' 
+        
+        Returns:
+        diary (dict): modified diary without selected mark or with
+                      replaced marks
+        '''
+        # Enumerating dictionary keys
         for day in diary:
             for lesson in diary[day]:
-                # Проверка есть ли оценка за урок
+                # Checking if lesson have a mark
                 if 'mark' in diary[day][lesson]:
-                    # Нужно ли удалить эту оценку
-                    if diary[day][lesson]['mark'] == mark:
-                        # Удаление оценки из словаря
+                    if method == 'replace':
+                        # Replacing mark in dict
+                        diary[day][lesson]['mark'] = mark
+                    elif method == 'delete':
+                        # Deleting mark from dict                        
                         diary[day][lesson].pop('mark')
-        return diary
-
-    def replace(self, diary, mark):
-        # Перебор ключей словаря (Не словарей!)        
-        for day in diary:
-            for lesson in diary[day]:
-                # Проверка есть ли оценка за урок                
-                if 'mark' in diary[day][lesson]:
-                    # Замена ненужной оценки
-                    diary[day][lesson]['mark'] = mark
         return diary
 
 
@@ -144,6 +151,13 @@ class DataBase:
         self.db_path = './db/user_data.db'
         self.key_words = ['SELECT', 'FROM', 'INTO', 'DROP', 'CREATE',
                           'UPDATE']
+
+    def get_file_id(self, attachment):
+        id_ = self.execute(
+            f"""SELECT id
+                FROM cache
+                WHERE name = '{attachment.originalFileName}'""")
+        return id_
         
     def get_files(self):
         '''
@@ -163,9 +177,8 @@ class DataBase:
         (Bool): Is list items safe or not
         '''
         for item in check_list:
-            item = str(item)
             for wrong_word in self.key_words:
-                if wrong_word in item.upper().strip().replace(' ', ''):
+                if wrong_word in str(item).upper().strip().replace(' ', ''):
                     return False
         return True
 
@@ -198,6 +211,16 @@ class DataBase:
         return self.execute('SELECT login \nFROM users\nWHERE auto_login=1')
     
     def isNewfile(self, attachment, day, lesson):
+        '''Check if this is a new file
+                
+        Parameters:
+        attachment (attachment class): attachment data
+        day (str): weekday name
+        lesson (str): lesson name
+
+        Returns:
+        (Bool): New file or not
+        '''
         files = self.get_files()
         for file in files:
             if file[0] == f'./files/{attachment.originalFileName}':
@@ -477,10 +500,15 @@ class ESchool:
         self.api = NetSchoolAPI(URL)
         self.login = login
         self.password = password
-        trio_run(self.api_login)
+        while trio_run(self.api_login):
+            pass
 
     async def download_file(self):
-        file = await self.api.download_file(self.attachment)
+        if not self.attachment.originalFileName in [file for file in listdir(
+                f'./files/')]:
+            file = await self.api.download_file(self.attachment)
+        else:
+            return False
         self.attachment = None
         return file
 
@@ -493,7 +521,8 @@ class ESchool:
         attachments = await self.api.get_attachments([self.id_])
         self.id_ = None
         return attachments
-    
+
+
     def week_now(self):
         today = date.today()
         week_start = today + timedelta(days=-today.weekday() - 7,
@@ -605,12 +634,20 @@ class DiaryWindow(QWidget):
                             'Четверг': self.thursday,
                             'Пятница': self.friday,
                             'Суббота': self.saturday}
+        self.days_ru_en = {'monday': 'Понедельник',
+                           'tuesday': 'Вторник',
+                           'wednesday': 'Среда',
+                           'thursday': 'Четверг',
+                           'friday': 'Пятница',
+                           'saturday': 'Суббота'}
         self.tables = [self.monday, self.tuesday, self.wednesday,
                        self.thursday,
                        self.friday, self.saturday]
         self.design_setup()
 
     def design_setup(self):
+        for table in self.tables:
+            table.cellDoubleClicked.connect(self.open_file)
         self.set_headers()
         week_start, week_end = self.api.get_week()
         y1, m1, d1 = week_start.year, week_start.month, week_start.day
@@ -638,6 +675,14 @@ class DiaryWindow(QWidget):
                     if table.item(i, 1).text() == file[4]:
                         table.item(i, 1).setBackground(Qt.yellow)
 
+    def open_file(self, row, column):
+        files = self.db.get_files()
+        sender_name=self.sender().objectName()        
+        table = self.days_and_widgets[self.days_ru_en[sender_name]]
+        for file in files:
+            if None != table.item(row, column):
+                if table.item(row, column).text() == file[4]:
+                    run(['open', file[0]], check=True)
     def show_next_week(self):
         if abs(self.last_next_week_show - time() // 1) <= 2:
             return
@@ -712,15 +757,6 @@ class DiaryWindow(QWidget):
                 vertical_headers)
         self.color_files()
             
-'''
-# TODO: Показ файла по двойному нажатию
-    def eventFilter(self, watched, event):
-        if watched in self.tables and event.type(
-            ) == QEvent.MouseButtonDblClick:
-            print("pos: ", event.pos())
-        return QWidget.eventFilter(self, watched, event)
-'''
-
 class MainMenu(QWidget):
     '''Main menu
 
@@ -746,7 +782,7 @@ class MainMenu(QWidget):
     def design_setup(self):
         self.main_icon.setPixmap(
             QPixmap('./images/icon.png'))
-        self.announcments_button.clicked.connect(self.show_announcements)
+        self.announcements_button.clicked.connect(self.show_announcements)
         self.exit_button.clicked.connect(self.exit_the_programm)
         self.about_button.clicked.connect(self.about)
         self.check_updates.clicked.connect(self.update_programm)
@@ -786,13 +822,13 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
         self.error.exec_()
 
     def show_announcements(self):
+        announcements = []
         self.showMinimized()
         for announcement in trio_run(self.api.announcements):
             announcement = self.clear.announcement(announcement)
-            # TODO: Сделать графический вывод
-            print(announcement['name'])
-            print(announcement['description'])
-            print(announcement['author'])
+            announcements.append(announcement)
+        announcement_window = AnnouncementSelector(self, announcements)
+        announcement_window.show()
 
     def show_diary(self):
         self.showMinimized()
@@ -808,9 +844,12 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
 
 
 class Clear:
-    __slots__ = ['simplified_lessons', 'daysoftheweek', 'db']
+    __slots__ = ['simplified_lessons', 'daysoftheweek', 'db', 'decode']
 
     def __init__(self):
+        self.decode = {'&amp;': '&', '&quot;': '"',
+            '&apos;': "'", '&gt;': '>', '&lt;': '<'}
+
         self.simplified_lessons = {
             'Практикум по русскому языку': 'Русский(П)',
             'Физическая культура': 'Физра',
@@ -859,19 +898,24 @@ class Clear:
                         if assignment.mark != None:
                             diary_lesson['mark'] = assignment.mark.mark
                         api.id_ = assignment.id
-                        lesson_attachment = trio_run(api.get_attachments)
+                        lesson_attachment = []
+                        if assignment.mark == None and assignment.weight == 0:
+                            lesson_attachment = trio_run(api.get_attachments)
                         if lesson_attachment != []:
                             lesson_attachment = lesson_attachment[0]
                             for attachment in lesson_attachment.attachments:
                                 api.attachment = attachment
                                 file_bytes = trio_run(api.download_file)
-                                with open(f'./files/{file_bytes.name}',
-                                          'wb') as file:
-                                    file.write(file_bytes.getbuffer())
-                                id_ = self.db.add_file(attachment,
-                                                    dayoftheweek_string,
-                                                    lesson_name)
-                                diary_lesson['file'] = id_
+                                if file_bytes != False:
+                                    with open(f'./files/{file_bytes.name}',
+                                              'wb') as file:
+                                        file.write(file_bytes.getbuffer())
+                                    id_ = self.db.add_file(attachment,
+                                                        dayoftheweek_string,
+                                                        lesson_name)
+                                else:
+                                    id_ = self.db.get_file_id(attachment)
+                                diary_lesson['file'] = id_                        
 
                     for homework in lesson.assignments:
                         diary_lesson['homework'].append(
@@ -890,11 +934,17 @@ class Clear:
 
     def announcement(self, announcement_):
         result = {}
-        result['name'] = announcement_.name
-        result['author'] = announcement_.author
-        result['description'] = announcement_.description
+        result['name'] = str(announcement_.name)
+        result['author'] = str(announcement_.author.fio)
+        result['description'] = str(self.announcement_description(
+            announcement_.description))
         return result
-
+    
+    def announcement_description(self, description):
+        for symvol in self.decode:
+            description = description.replace(symvol, self.decode[symvol])
+        return description
+        
     def lesson(self, lesson):
         '''Упрощение названий предметов
 
@@ -935,7 +985,7 @@ class SettingsWindow(QWidget):
         diary_window.show()
 
     def save(self):
-        version = '0.44'
+        version = '0.46'
         editable = self.edit_mode.isChecked()
         if editable:
             editable = 'yes'
@@ -959,6 +1009,9 @@ version={version}''')
 
 
 class GetSettings:
+    '''
+    Read settings from ./settings.ini
+    '''
     __slots__ = ['configs']
 
     def __init__(self):
@@ -972,7 +1025,47 @@ class GetSettings:
         self.configs.read('./settings.ini')
         return self.configs['E-School']['editable']
 
+class AnnouncementSelector(QWidget):
+    def __init__(self, parent, announcements):
+        super().__init__(parent, Qt.Window)
+        loadUi('./ui/announcement_selector.ui', self)
+        
+        self.announcements = announcements
+        self.design_setup()
 
+    def design_setup(self):
+        announcements_names = [announcement['name']
+                               for announcement in self.announcements]
+        self.announcements_combobox.addItems(announcements_names)
+        self.open_announcements_button.clicked.connect(
+            self.open_announcements)
+
+    def open_announcements(self):
+        announcement_name = self.announcements_combobox.currentText()
+        for announcement_ in self.announcements:
+            if announcement_name == announcement_['name']:
+                announcement = announcement_
+                break
+        announcement_window = AnnouncementWindow(self, announcement)
+        announcement_window.show()
+
+class AnnouncementWindow(QWidget):
+    def __init__(self, parent, announcement):
+        super().__init__(parent, Qt.Window)
+        loadUi('./ui/announcement_window.ui', self)
+
+        self.announcement = announcement
+        self.design_setup()
+        
+    def design_setup(self):
+        self.name_label.setOpenExternalLinks(True)
+        self.description_label.setOpenExternalLinks(True)
+        self.author_label.setOpenExternalLinks(True)
+        self.name_label.setText(self.announcement['name'])
+        self.description_label.setText(self.announcement['description'])
+        self.author_label.setText(self.announcement['author'])
+        
+        
 if __name__ == '__main__':
     Setup()
     app = QApplication(argv)

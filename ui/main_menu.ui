@@ -65,7 +65,7 @@ color: rgb(0, 0, 0);</string>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="announcments_button">
+      <widget class="QPushButton" name="announcements_button">
        <property name="font">
         <font>
          <weight>75</weight>
