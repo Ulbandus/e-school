@@ -31,21 +31,6 @@ color: rgb(255, 255, 255);</string>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
     <layout class="QGridLayout" name="gridLayout">
-     <item row="1" column="0">
-      <widget class="QLabel" name="description_label">
-       <property name="font">
-        <font>
-         <family>Segoe UI Semibold</family>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>DESCRIPTION</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="0">
       <widget class="QLabel" name="name_label">
        <property name="font">
@@ -73,6 +58,28 @@ color: rgb(255, 255, 255);</string>
        </property>
        <property name="text">
         <string>AUTHOR</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="description_label">
+       <property name="font">
+        <font>
+         <family>Segoe UI Semibold</family>
+         <pointsize>10</pointsize>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>DESCRIPTION</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QPushButton" name="open_file">
+       <property name="text">
+        <string>Открыть файл</string>
        </property>
       </widget>
      </item>

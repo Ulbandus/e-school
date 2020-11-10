@@ -12,8 +12,8 @@ from datetime import datetime, timedelta, date
 from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
-from os.path import exists
-from os import mkdir, listdir
+from os.path import exists, abspath
+from os import mkdir, listdir, startfile
 from time import sleep
 from httpx import ConnectTimeout
 
@@ -25,8 +25,7 @@ from trio import run as trio_run
 # Other
 from sqlite3 import connect
 from calendar import day_abbr
-from subprocess import call, run
-
+from subprocess import Popen
 # Python file
 from updater import Updater
 
@@ -52,7 +51,7 @@ class Cheat:
 
     def __init__(self):
         pass
-    
+
     def up_marks(self, diary, mode):
         '''Run modify function with special parameters 
         
@@ -97,8 +96,9 @@ class Cheat:
                         # Replacing mark in dict
                         diary[day][lesson]['mark'] = mark
                     elif method == 'delete':
-                        # Deleting mark from dict                        
-                        diary[day][lesson].pop('mark')
+                        # Deleting mark from dict
+                        if str(diary[day][lesson]['mark']) == str(mark):
+                            diary[day][lesson].pop('mark')
         return diary
 
 
@@ -109,7 +109,6 @@ class GDZ:
     '''
     def __init__(self):
         pass
-
 
 
 class LenException(Exception):
@@ -158,7 +157,7 @@ class DataBase:
                 FROM cache
                 WHERE name = '{attachment.originalFileName}'""")
         return id_
-        
+
     def get_files(self):
         '''
         Get all files from database
@@ -181,7 +180,6 @@ class DataBase:
                 if wrong_word in str(item).upper().strip().replace(' ', ''):
                     return False
         return True
-
 
     def execute(self, command):
         '''Run command(string)
@@ -209,7 +207,7 @@ class DataBase:
         Gets the logins of the users who specified the auto login
         '''
         return self.execute('SELECT login \nFROM users\nWHERE auto_login=1')
-    
+
     def isNewfile(self, attachment, day, lesson):
         '''Check if this is a new file
                 
@@ -226,6 +224,13 @@ class DataBase:
             if file[0] == f'./files/{attachment.originalFileName}':
                 return False
         return True
+    
+    def get_file_by_id(self, id_):
+        file = self.execute(
+            f"""SELECT path, name, type, day, lesson, id
+                FROM cache
+                WHERE id = {id_}""")
+        return file[0]
 
     def add_file(self, attachment, day, lesson):
         '''Add file path, name, extension, id, day, lesson in table 'cache' 
@@ -242,7 +247,7 @@ class DataBase:
         if not self.check_safety([attachment, day, lesson]):
             return
         if not self.isNewfile(attachment, day, lesson):
-            return
+            return self.get_file_id(attachment)
         path = f'./files/{attachment.originalFileName}'
         name = attachment.name
         id_ = self.get_last_id('cache') + 1
@@ -355,8 +360,7 @@ class Login(QWidget):
         except IOError:
             internet_connection = False
         return internet_connection
-            
-            
+
     def select_login(self):
         '''
         output: bool/string
@@ -466,8 +470,8 @@ class Login(QWidget):
             raise LenException
         elif set(string) & self.digits == set():
             raise DigitException
-        elif set(string.lower()) & set(ascii_lowercase +\
-                                       self.ru_lowercase) == set():
+        elif set(string.lower()) & set(ascii_lowercase
+                                       + self.ru_lowercase) == set():
             raise LetterException
         else:
             return True
@@ -493,7 +497,7 @@ class ESchool:
     def __init__(self, login, password):
         self.week = None
         self.attachment = None
-        self.id_ = None        
+        self.id_ = None
         week_start, week_end = self.week_now()
         self.current_week_start = week_start
         self.current_week_end = week_end
@@ -521,7 +525,6 @@ class ESchool:
         attachments = await self.api.get_attachments([self.id_])
         self.id_ = None
         return attachments
-
 
     def week_now(self):
         today = date.today()
@@ -595,7 +598,7 @@ class AccountSelector(QDialog):
         self.hide()
 
     def yes(self):
-        self.answer = True        
+        self.answer = True
         blured_login = self.login_combobox.currentText()
         self.login = self.blured_logins[blured_login]
         self.hide()
@@ -617,7 +620,7 @@ class DiaryWindow(QWidget):
     def __init__(self, parent, api):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/diary.ui', self)
-        
+
         self.parent = parent
         self.api = api
         self.db = DataBase()
@@ -654,11 +657,11 @@ class DiaryWindow(QWidget):
         y2, m2, d2 = week_end.year, week_end.month, week_end.day
         self.week.setText(f'{y1}-{m1}-{d1} | {y2}-{m2}-{d2}')
         self.fill_the_tables()
-
-    def set_headers(self):
         self.settings_button.clicked.connect(self.show_settings)
         self.next_week.clicked.connect(self.show_next_week)
         self.previous_week.clicked.connect(self.show_previous_week)
+
+    def set_headers(self):
         self.monday.setHorizontalHeaderLabels(self.day_headers)
         self.tuesday.setHorizontalHeaderLabels(self.day_headers)
         self.wednesday.setHorizontalHeaderLabels(self.day_headers)
@@ -666,23 +669,27 @@ class DiaryWindow(QWidget):
         self.friday.setHorizontalHeaderLabels(self.day_headers)
         self.saturday.setHorizontalHeaderLabels(self.day_headers)
 
-    def color_files(self):
+    def color_files(self, diary):
         files = self.db.get_files()
         for file in files:
             table = self.days_and_widgets[file[3]]
             for i in range(1, table.rowCount() + 1):
                 if None != table.item(i, 1):
-                    if table.item(i, 1).text() == file[4]:
+                    if table.item(i, 1).text().strip() == file[4].strip():
                         table.item(i, 1).setBackground(Qt.yellow)
-
+                        
     def open_file(self, row, column):
         files = self.db.get_files()
-        sender_name=self.sender().objectName()        
+        sender_name = self.sender().objectName()
         table = self.days_and_widgets[self.days_ru_en[sender_name]]
         for file in files:
             if None != table.item(row, column):
                 if table.item(row, column).text() == file[4]:
-                    run(['open', file[0]], check=True)
+                    absolute_path = "/".join(abspath(__file__).split(
+                        "\\")[:-1]) + f'/{file[0][1:]}'
+                    Popen(absolute_path, shell=True)
+                    break
+
     def show_next_week(self):
         if abs(self.last_next_week_show - time() // 1) <= 2:
             return
@@ -741,8 +748,8 @@ class DiaryWindow(QWidget):
                 for index, lesson in enumerate(diary[day]):
                     name = lesson
                     lesson = diary[day][lesson]
-                    self.days_and_widgets[day].setItem(index, 0, QTableWidgetItem(
-                        ' | '.join(lesson['time'])))
+                    self.days_and_widgets[day].setItem(
+                        index, 0, QTableWidgetItem(' | '.join(lesson['time'])))
                     self.days_and_widgets[day].setItem(
                         index, 1, QTableWidgetItem(name))
                     vertical_headers.append(str(lesson['number']))
@@ -753,10 +760,12 @@ class DiaryWindow(QWidget):
                     if 'mark' in lesson:
                         self.days_and_widgets[day].setItem(
                             index, 3, QTableWidgetItem(str(lesson['mark'])))
-            self.days_and_widgets[day].setVerticalHeaderLabels(
-                vertical_headers)
-        self.color_files()
-            
+        while len(vertical_headers) < 7:
+            vertical_headers.append('0')
+        self.days_and_widgets[day].setVerticalHeaderLabels(
+            vertical_headers)
+        self.color_files(diary)
+
 class MainMenu(QWidget):
     '''Main menu
 
@@ -793,8 +802,8 @@ class MainMenu(QWidget):
         error.setIcon(QMessageBox.Critical)
         error.setText(text)
         error.setWindowTitle('Error')
-        error.exec_()    
-        
+        error.exec_()
+
     def update_programm(self):
         updater = Updater()
         if updater.cur_version >= updater.new_version:
@@ -804,20 +813,19 @@ class MainMenu(QWidget):
                 f'''Обновление...
 {updater.cur_version} --> {updater.new_version}
 Программа будет перезапущена''')
-            call('updater.py', shell=True)
+            Popen('updater.py', shell=True)
             self.destroy()
             exit()
-
 
     def about(self):
         self.error.setIcon(QMessageBox.Information)
         self.error.setWindowTitle('О программе')
         self.error.setText(
             'Разработчик: @Ulbandus\n\
-GitHub: https://github.com/Ulbandus/e-school\n---\n\
+GitHub: https://github.com/Ulbandus/e-school\n\n\
 Разработчик api: nm17\n\
 Github(api): https://github.com/nm17/netschoolapi/\n\
-NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
+NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n\n\
 Программа создана при поддержке Яндекс.Лицей')
         self.error.exec_()
 
@@ -825,7 +833,7 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n---\n\
         announcements = []
         self.showMinimized()
         for announcement in trio_run(self.api.announcements):
-            announcement = self.clear.announcement(announcement)
+            announcement = self.clear.announcement(announcement, self.api)
             announcements.append(announcement)
         announcement_window = AnnouncementSelector(self, announcements)
         announcement_window.show()
@@ -915,8 +923,9 @@ class Clear:
                                                         lesson_name)
                                 else:
                                     id_ = self.db.get_file_id(attachment)
-                                diary_lesson['file'] = id_                        
-
+                                if type(id_[0]) != int:
+                                    id_ = id_[0]
+                                diary_lesson['file'] = id_[0]
                     for homework in lesson.assignments:
                         diary_lesson['homework'].append(
                             homework.assignmentName)
@@ -932,19 +941,30 @@ class Clear:
             string = string.replace(forbidden_sym, '')
         return string
 
-    def announcement(self, announcement_):
+    def announcement(self, announcement_, api):
         result = {}
         result['name'] = str(announcement_.name)
         result['author'] = str(announcement_.author.fio)
         result['description'] = str(self.announcement_description(
             announcement_.description))
+        if announcement_.attachments != []:
+            api.attachment = announcement_.attachments[0]
+            file_bytes = trio_run(api.download_file)
+            if file_bytes != False:
+                with open(f'./files/{file_bytes.name}',
+                          'wb') as file:
+                    file.write(file_bytes.getbuffer())
+                result['attachment'] = f'./files/{file_bytes.name}'
+            else:
+                path = f'./files/{announcement_.attachments[0].originalFileName}'
+                result['attachment'] = path
         return result
-    
+
     def announcement_description(self, description):
         for symvol in self.decode:
             description = description.replace(symvol, self.decode[symvol])
         return description
-        
+
     def lesson(self, lesson):
         '''Упрощение названий предметов
 
@@ -973,6 +993,7 @@ class SettingsWindow(QWidget):
 
         self.api = api
         self.parent = parent
+        self.settings = GetSettings()
         self.design_setup()
 
     def design_setup(self):
@@ -985,7 +1006,6 @@ class SettingsWindow(QWidget):
         diary_window.show()
 
     def save(self):
-        version = '0.46'
         editable = self.edit_mode.isChecked()
         if editable:
             editable = 'yes'
@@ -1002,10 +1022,7 @@ class SettingsWindow(QWidget):
         elif self.four_and_more.isChecked():
             cheat_state = '4>'
         with open('settings.ini', 'w') as file:
-            file.write(f'''[E-School]
-cheater={cheat_state}
-editable={editable}
-version={version}''')
+            self.settings.save(cheat_state, editable)
 
 
 class GetSettings:
@@ -1016,6 +1033,13 @@ class GetSettings:
 
     def __init__(self):
         self.configs = ConfigParser()
+        
+    def save(self, cheat_mode, edit_mode):
+        self.configs.set('E-School', 'cheater', cheat_mode)
+        self.configs.set('E-School', 'editer', edit_mode)
+        with open('./settings.ini', 'wb') as configs:
+            configs.write(self.configs)
+
 
     def cheat_mode(self):
         self.configs.read('./settings.ini')
@@ -1029,7 +1053,7 @@ class AnnouncementSelector(QWidget):
     def __init__(self, parent, announcements):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/announcement_selector.ui', self)
-        
+
         self.announcements = announcements
         self.design_setup()
 
@@ -1056,7 +1080,7 @@ class AnnouncementWindow(QWidget):
 
         self.announcement = announcement
         self.design_setup()
-        
+
     def design_setup(self):
         self.name_label.setOpenExternalLinks(True)
         self.description_label.setOpenExternalLinks(True)
@@ -1064,8 +1088,17 @@ class AnnouncementWindow(QWidget):
         self.name_label.setText(self.announcement['name'])
         self.description_label.setText(self.announcement['description'])
         self.author_label.setText(self.announcement['author'])
-        
-        
+        if 'attachment' in self.announcement:
+            self.absolute_path = "/".join(abspath(__file__).split("\\")[:-1]) +\
+                f'/{self.announcement["attachment"][1:]}'
+            self.open_file.clicked.connect(self.run_file)
+        else:
+            self.open_file.hide()
+            
+    def run_file(self):
+        Popen(self.absolute_path, shell=True)
+
+
 if __name__ == '__main__':
     Setup()
     app = QApplication(argv)
