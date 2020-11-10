@@ -70,8 +70,7 @@
 ![Login button](https://i.imgur.com/X6ldmIn.jpg)
 
 ## Получение объявлений от школы 
-В ближайшем будущем...
-
+![Announcements](https://i.imgur.com/nvWsQLG.png)
 ##  Просмотр оценок и расписания
 Для смены недели надо нажать на одну из кнопок вперёд или назад
 ![Diary](https://i.imgur.com/wPXzBTq.jpg)
