@@ -13,7 +13,7 @@ from time import time
 from configparser import ConfigParser
 from urllib.request import urlopen
 from os.path import exists, abspath
-from os import mkdir, listdir, startfile
+from os import mkdir, listdir
 from time import sleep
 from httpx import ConnectTimeout
 
@@ -521,6 +521,9 @@ class ESchool:
                              school=SCHOOL, state=STATE, province=PROVINCE,
                              city=CITY, func=FUNC)
 
+    async def api_logout(self):
+        await self.api.logout()
+        
     async def get_attachments(self):
         attachments = await self.api.get_attachments([self.id_])
         self.id_ = None
@@ -848,6 +851,7 @@ NetSchoolAPI(Copyright © 2020 Даниил Николаев).\n\n\
                                       'Вы уверены, что хотите выйти?',
                                       QMessageBox.Yes, QMessageBox.No)
         if answer == QMessageBox.Yes:
+            trio_run(self.api.api_logout)
             sys_exit(self.destroy())
 
 
