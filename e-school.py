@@ -23,6 +23,7 @@ from netschoolapi.exceptions import WrongCredentialsError
 from trio import run as trio_run
 
 # Other
+import dacite
 from sqlite3 import connect
 from calendar import day_abbr
 from subprocess import Popen
@@ -40,6 +41,18 @@ CITY = 'Кудрово, г.'
 # School focus
 FUNC = 'Общеобразовательная'
 
+class NetSchoolAPIPlus(NetSchoolAPI):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def get_messages(self):
+        func = '/asp/ajax/GetMessagesAjax.asp'
+        full_url = self.url + \
+            f'{func}?AT={self.at}&nBoxID=1&jtStartIndex=0&jtPageSize=100&jtSorting=Sent%20DESC'        
+        async with self.session as s:
+            resp = await s.get(full_url)
+        return resp.json()
+
 class Setup:
     __slots__ = []
     def __init__(self):
@@ -53,7 +66,7 @@ class Cheat:
         pass
 
     def up_marks(self, diary, mode):
-        '''Run modify function with special parameters 
+        '''Run modify function with special parameters
         
         Parameters:
         diary (dict): Login or password which need verification
@@ -501,11 +514,14 @@ class ESchool:
         week_start, week_end = self.week_now()
         self.current_week_start = week_start
         self.current_week_end = week_end
-        self.api = NetSchoolAPI(URL)
+        self.api = NetSchoolAPIPlus(URL)
         self.login = login
         self.password = password
         while trio_run(self.api_login):
             pass
+        
+    async def get_messages(self):
+        return await self.api.get_messages()
 
     async def download_file(self):
         if not self.attachment.originalFileName in [file for file in listdir(
@@ -927,9 +943,9 @@ class Clear:
                                                         lesson_name)
                                 else:
                                     id_ = self.db.get_file_id(attachment)
-                                if type(id_[0]) != int:
+                                while type(id_) != int:
                                     id_ = id_[0]
-                                diary_lesson['file'] = id_[0]
+                                diary_lesson['file'] = id_
                     for homework in lesson.assignments:
                         diary_lesson['homework'].append(
                             homework.assignmentName)
