@@ -67,12 +67,22 @@
 ## Вход
 Для начала надо ввести Логин и Пароль (~~потом они будут отправлены на наши сервера~~) и нажать кнопку **Вход**
 
-![Login button](https://i.imgur.com/X6ldmIn.jpg)
+![Login button](https://i.imgur.com/QhAQPtR.png)
+
+## Меню
+![Menu](https://i.imgur.com/jCqHitr.png)
+
+## Чит-мод
+![Cheat mode](https://i.imgur.com/gOvN0J0.png)
 
 ## Получение объявлений от школы 
 ![Announcements](https://i.imgur.com/nvWsQLG.png)
 ##  Просмотр оценок и расписания
 Для смены недели надо нажать на одну из кнопок вперёд или назад
-![Diary](https://i.imgur.com/wPXzBTq.jpg)
-# Быстрый  доступ к ГДЗ
+![Diary](https://i.imgur.com/I8B9TsD.png)
+
+## О программе
+![Bout](https://i.imgur.com/PngqPpj.png)
+
+## Быстрый  доступ к ГДЗ
 В ближайшем будущем...
