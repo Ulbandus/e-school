@@ -99,7 +99,7 @@ class Updater:
                 return param.split('=')[-1]
 
     def get_cur_version(self, configparser):
-        configparser.read('settings.ini')
+        configparser.read('settings.ini', encoding='utf-8')
         return configparser['E-School']['version']
 
 if __name__ == '__main__':

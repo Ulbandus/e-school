@@ -41,6 +41,12 @@ CITY = 'Кудрово, г.'
 # School focus
 FUNC = 'Общеобразовательная'
 
+class BannedAPIException(Exception):
+    '''Was banned by server'''
+
+    def __init__(self):
+        self.text = 'Попробуйте позже'
+
 class NetSchoolAPIPlus(NetSchoolAPI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -155,53 +161,54 @@ class WrongLoginDataException(Exception):
 
 
 class DataBase:
-    __slots__ = ['db_path', 'key_words']
+    '''Work with DataBase('./db/user_data.db')
+    
+    Methods:
+        get_login - Get all logins
+        get_data - Get selected data
+        get_file_id - Get file id
+        get_files - Get all files from database
+        add_file - Add file in database
+        add_user - Add user in database
+        execute - Run sql query
+        get_all_info - Get users who selected auto login
+        get_last_id - Get last file/user id
+        get_auto_login_user_data - Get users logins who selected auto login
+        get_user_data - Get data by logn and password
+        isNewfile - Is file in database or not
+        add_data - Add selected data
+        update_data - Update selected value
     '''
-    Work with DataBase('./db/user_data.db')
-    '''
+    __slots__ = ['db_path']
+
     def __init__(self):
         self.db_path = './db/user_data.db'
-        self.key_words = ['SELECT', 'FROM', 'INTO', 'DROP', 'CREATE',
-                          'UPDATE']
 
-    def get_file_id(self, attachment):
-        id_ = self.execute(
-            f"""SELECT id
-                FROM cache
-                WHERE name = '{attachment.originalFileName}'""")
-        return id_
+    def add_data(self, table: str, items: list = ['*']):
+        items = list(map(lambda x: f'"{x}"', items))
+        self.execute(f"""
+            INSERT INTO {table}
+            VALUES({', '.join(items)})""")
 
-    def get_files(self):
+    def get_data(self, table: str, items: list = ['*'], condition: str = ''):
         '''
-        Get all files from database
+        Get items from table where condition is true
         '''
-        return self.execute(f'''
-        SELECT path, name, type, day, lesson, id
-        FROM cache''')
+        query = f"""SELECT {', '.join(items)}
+                FROM {table}"""
+        if condition != '':
+            query += f'\nWHERE {condition}'
+        result = self.execute(query)
+        return result
 
-    def check_safety(self, check_list):
-        '''Check if list items in special sql word list
-        
-        Parameters:
-        check_list (list) 
-
-        Returns:
-        (Bool): Is list items safe or not
-        '''
-        for item in check_list:
-            for wrong_word in self.key_words:
-                if wrong_word in str(item).upper().strip().replace(' ', ''):
-                    return False
-        return True
-
-    def execute(self, command):
+    def execute(self, command: str):
         '''Run command(string)
         
         Parameters:
-        command (str): Sql query  
+        command (str): Sql query
 
         Returns:
-        (Bool): Query result
+        result (str): Query result
         
         '''
         with connect(self.db_path) as db:
@@ -209,25 +216,46 @@ class DataBase:
             result = cur.execute(command).fetchall()
         return result
 
-    def get_all_info(self):
+    def get_file_id(self, attachment):
+        '''
+        Get file id by attachment file name
+        '''
+        id_ = self.get_data(
+            table='cache',
+            items=['id'],
+            condition=f'name = "{attachment.originalFileName}"')
+        return id_[0][0]
+
+    def get_files(self):
+        '''
+        Get all files from database
+        '''
+        files = self.get_data(table='cache')
+        return files
+
+    def get_auto_login_user_data(self, items: list = ['*']):
         '''
         Gets the data of the users who specified the auto login
         '''
-        return self.execute('SELECT * \nFROM users\nWHERE auto_login=1')
+        result = self.get_data(
+            table='users',
+            items=items,
+            condition='auto_login=1'
+        )
+        return result
 
     def get_login(self):
         '''
-        Gets the logins of the users who specified the auto login
+        Gets all logins
         '''
-        return self.execute('SELECT login \nFROM users\nWHERE auto_login=1')
+        result = self.get_auto_login_user_data(items=['login'])
+        return list(map(lambda x: x[0], result))
 
-    def isNewfile(self, attachment, day, lesson):
+    def isNewfile(self, attachment):
         '''Check if this is a new file
                 
         Parameters:
         attachment (attachment class): attachment data
-        day (str): weekday name
-        lesson (str): lesson name
 
         Returns:
         (Bool): New file or not
@@ -237,15 +265,8 @@ class DataBase:
             if file[0] == f'./files/{attachment.originalFileName}':
                 return False
         return True
-    
-    def get_file_by_id(self, id_):
-        file = self.execute(
-            f"""SELECT path, name, type, day, lesson, id
-                FROM cache
-                WHERE id = {id_}""")
-        return file[0]
 
-    def add_file(self, attachment, day, lesson):
+    def add_file(self, attachment, day: str, lesson: str):
         '''Add file path, name, extension, id, day, lesson in table 'cache' 
         
         Parameters:
@@ -257,23 +278,32 @@ class DataBase:
         id_ (int): File id in database or None (If attachment/lesson/day don't
                                                 passed sql injection test) 
         '''
-        if not self.check_safety([attachment, day, lesson]):
-            return
-        if not self.isNewfile(attachment, day, lesson):
-            return self.get_file_id(attachment)
         path = f'./files/{attachment.originalFileName}'
+        id_ = self.get_last_id(table='cache') + 1
         name = attachment.name
-        id_ = self.get_last_id('cache') + 1
+        extension = path.split('.')[-1]
+
+        if not self.isNewfile(attachment):
+            print('SSSS')
+            return self.get_file_id(attachment)
         if name == None:
             name = attachment.originalFileName
-        type_ = path.split('.')[-1]
-        self.execute(
-            f"""INSERT INTO cache
-                VALUES('{path}', '{name}', '{type_}', '{day}', '{lesson}',
-                {id_})""")
+        self.add_data(table='cache',
+                      items=[path, name, extension, day, lesson, id_])
+        print(id_)
         return id_
 
-    def add_user(self, login, password, class_, school, auto_login, id_):
+    def update_data(self, table: str, key: str, value: str, condition: str):
+        if not value.startswith('"') or not value.startswith("'"):
+            value = f'"{value}"'
+        self.execute(f'''
+            UPDATE {table} 
+            SET {key} = {value}
+            WHERE {condition}
+        ''')
+
+    def add_user(self, login: str, password: str, class_: str, school: str,
+                 auto_login: bool, id_: int):
         '''Add user data in table 'users' 
         
         Parameters:
@@ -287,52 +317,41 @@ class DataBase:
         '''
         if '' in [login.strip(), password.strip()]:
             return
-        if not self.check_safety([login, password, class_, school,
-                                 auto_login, id_]):
-            return
         user = self.get_user_data(login, password, True)
         if user != False:
             if str(user[4]) == '0':
-                self.execute(f'''
-                UPDATE users 
-                SET auto_login = 1 
-                WHERE login = '{login}' AND password = '{password}'
-                ''')
+                self.update_data(
+                    table='users',
+                    key='auto_login',
+                    value='1',
+                    condition=f'login = "{login}" AND password = "{password}"')
         else:
-            if auto_login:
-                auto_login = 1
-            else:
-                auto_login = 0
-            self.execute(f'''INSERT INTO users
-        VALUES('{login}', '{password}', '{class_}', '{school}', '{auto_login}',
-        '{id_}')
-        ''')
+            auto_login = 1 if auto_login else 0
+            self.add_data(
+                table='users',
+                items=[login, password, class_, school, auto_login, id_])
 
-    def get_user_data(self, login, password, auto_login_users=False):
+    def get_user_data(self, login: str, password: str, auto_login_users=False):
         '''
         Gets the data of a specific user
         '''
+        condition = f'login = "{login}" AND password = "{password}"'
         if auto_login_users:
-            user = self.execute(f'''
-            SELECT login, password, class, school, auto_login, id
-            FROM users
-            WHERE login = '{login}' AND password = '{password}'
-            ''')
-        else:
-            user = self.execute(f'''
-        SELECT login, password, class, school, auto_login, id
-        FROM users
-        WHERE login = '{login}' AND password = '{password}' and auto_login=1
-        ''')
+            condition += ' and auto_login=1'
+        user = self.get_data(
+            table='users',
+            condition=condition
+        )
         if user == []:
             return False
         return user[0]
 
-    def get_last_id(self, table='users'):
-        id_list = self.execute(f'SELECT id \nFROM {table}')
-        if id_list == []:
+    def get_last_id(self, table: str = 'users'):
+        id_list = self.execute(f'SELECT MAX(id)\nFROM {table}')
+        if len(id_list) == 0 or id_list == [(None,)]:
             return -1
-        return int(max([id_[0] for id_ in id_list]))
+        print(id_list)
+        return id_list[0][0]
 
 
 class Login(QWidget):
@@ -388,12 +407,14 @@ class Login(QWidget):
         return False
 
     def db_passwords(self):
-        database_info = self.db.get_all_info()
+        database_info = self.db.get_auto_login_user_data()
         if database_info != []:
             login = self.select_login()
             if login != False:
+                print(database_info, login)
                 database_info = [user for user in database_info
                                  if login in user][0]
+                print(database_info)
                 self.login_input.setEchoMode(QLineEdit.Password)
                 self.login_view_checkbox.setChecked(True)
                 self.login_input.setText(database_info[0])
@@ -434,9 +455,15 @@ class Login(QWidget):
             self.show_error(WrongLoginDataException().text)
         except Exception as error:
             try:
-                self.show_error(str(error.text))
+                if str(error.text) == '':
+                    self.show_error(str(BannedAPIException().text))
+                else:
+                    self.show_error(str(error.text))
             except:
-                self.show_error(str(error))
+                if str(error) == '':
+                    self.show_error(str(BannedAPIException().text))                
+                else:
+                    self.show_error(str(error))
         else:
             self.add_user(login, password, self.diary)
             self.start_main_menu(login, password)
@@ -529,7 +556,6 @@ class ESchool:
             file = await self.api.download_file(self.attachment)
         else:
             return False
-        self.attachment = None
         return file
 
     async def api_login(self):
@@ -542,7 +568,6 @@ class ESchool:
         
     async def get_attachments(self):
         attachments = await self.api.get_attachments([self.id_])
-        self.id_ = None
         return attachments
 
     def week_now(self):
@@ -606,7 +631,6 @@ class AccountSelector(QDialog):
     def blure_logins(self, logins):
         self.blured_logins = {}
         for login in logins:
-            login = login[0]
             blured_login_part = login[2:-2]
             blured_login = login.replace(
                 blured_login_part, len(blured_login_part) * '*')
@@ -687,12 +711,22 @@ class DiaryWindow(QWidget):
         self.thursday.setHorizontalHeaderLabels(self.day_headers)
         self.friday.setHorizontalHeaderLabels(self.day_headers)
         self.saturday.setHorizontalHeaderLabels(self.day_headers)
+        
+    def uncolor(self):
+        for day in self.days_and_widgets:
+            print(day)
+            table = self.days_and_widgets[day]
+            for i in range(1, table.rowCount() + 1):
+                for j in range(1, table.columnCount() + 1):
+                    if None != table.item(i, j):
+                        table.item(i, j).setBackground(Qt.white)
+
 
     def color_files(self, diary):
         files = self.db.get_files()
         for file in files:
             table = self.days_and_widgets[file[3]]
-            for i in range(1, table.rowCount() + 1):
+            for i in range(0, table.rowCount() + 1):
                 if None != table.item(i, 1):
                     if table.item(i, 1).text().strip() == file[4].strip():
                         table.item(i, 1).setBackground(Qt.yellow)
@@ -746,6 +780,7 @@ class DiaryWindow(QWidget):
         self.last_previous_week_show = time()
 
     def fill_the_tables(self, week=''):
+        self.uncolor()
         cheat_mode = self.settings.cheat_mode()
         if week != '':
             self.api.week = week
@@ -941,11 +976,9 @@ class Clear:
                                     id_ = self.db.add_file(attachment,
                                                         dayoftheweek_string,
                                                         lesson_name)
-                                else:
-                                    id_ = self.db.get_file_id(attachment)
-                                while type(id_) != int:
-                                    id_ = id_[0]
-                                diary_lesson['file'] = id_
+                                    while type(id_) != int:
+                                        id_ = id_[0]
+                                    diary_lesson['file'] = id_
                     for homework in lesson.assignments:
                         diary_lesson['homework'].append(
                             homework.assignmentName)
@@ -1030,7 +1063,6 @@ class SettingsWindow(QWidget):
         if editable:
             editable = 'yes'
         editable = 'no'
-        cheat_state = None
         if self.cheat_off.isChecked():
             cheat_state = 'off'
         elif self.only_five.isChecked():
@@ -1044,38 +1076,59 @@ class SettingsWindow(QWidget):
         with open('settings.ini', 'w') as file:
             self.settings.save(cheat_state, editable)
 
-
 class GetSettings:
+    '''Read configs from ./settings.ini
+    
+    Methods:
+        *save - Save cheat and edit mode value to confih file
+        *cheat_mode - Get save mode value from edit value
+        *edit_mode - Get edit mode value from edit value
+        *login_data - Get login data from config file
     '''
-    Read settings from ./settings.ini
-    '''
-    __slots__ = ['configs']
+    __slots__ = ['configs', 'config_path', 'clear']
 
     def __init__(self):
+        self.clear = Clear()
+        self.config_path = './settings.ini'
         self.configs = ConfigParser()
-        
-    def save(self, cheat_mode, edit_mode):
+        self.configs.read(self.config_path, encoding="utf-8")
+
+    def save(self, cheat_mode: str, edit_mode: str):
         self.configs.set('E-School', 'cheater', cheat_mode)
         self.configs.set('E-School', 'editer', edit_mode)
-        with open('./settings.ini', 'wb') as configs:
-            configs.write(self.configs)
-
+        with open(self.config_path, 'w', encoding='utf-8') as configs:
+            self.configs.write(configs)
 
     def cheat_mode(self):
-        self.configs.read('./settings.ini')
         return self.configs['E-School']['cheater']
 
     def edit_mode(self):
-        self.configs.read('./settings.ini')
         return self.configs['E-School']['editable']
+
+    def login_data(self):
+        '''
+        Get login data from configs for login
+        '''
+        url = self.configs['E-School']['url']
+        school = self.configs['E-School']['school']
+        state = self.configs['E-School']['state']
+        province = self.configs['E-School']['province']
+        city = self.configs['E-School']['city']
+        func = self.configs['E-School']['func']
+        return [url, school, state, province, city, province]
 
 class AnnouncementSelector(QWidget):
     def __init__(self, parent, announcements):
         super().__init__(parent, Qt.Window)
         loadUi('./ui/announcement_selector.ui', self)
 
+        self.parent = parent
         self.announcements = announcements
         self.design_setup()
+        
+    def closeEvent(self, event):
+        self.parent.show()        
+        event.accept()
 
     def design_setup(self):
         announcements_names = [announcement['name']

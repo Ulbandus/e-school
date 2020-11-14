@@ -19,7 +19,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>Расписание</string>
   </property>
   <property name="styleSheet">
    <string notr="true">background-color: rgb(36, 48, 83);
